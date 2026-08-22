@@ -29,11 +29,15 @@ export function WaitlistForm() {
     setStatus('loading')
     setErrorMsg('')
 
+    // LinkedIn اختياري:
+    // إذا كانت الخانة فارغة، نرسل null بدل رابط فارغ.
+    const linkedinValue = linkedin.trim() || null
+
     const result = await joinWaitlist({
-      fullName,
-      email,
-      skills,
-      linkedin,
+      fullName: fullName.trim(),
+      email: email.trim(),
+      skills: skills.trim(),
+      linkedin: linkedinValue,
     })
 
     if (result.ok) {
@@ -48,15 +52,11 @@ export function WaitlistForm() {
     setStatus('error')
 
     if (result.reason === 'invalid') {
-      setErrorMsg(
-        'يرجى التأكد من إدخال جميع البيانات المطلوبة بشكل صحيح.'
-      )
+      setErrorMsg('يرجى التأكد من إدخال جميع البيانات المطلوبة بشكل صحيح.')
     } else if (result.reason === 'duplicate') {
       setErrorMsg('هذا البريد الإلكتروني مسجّل بالفعل.')
     } else {
-      setErrorMsg(
-        'حدث خطأ أثناء التسجيل. يرجى المحاولة مرة أخرى.'
-      )
+      setErrorMsg('حدث خطأ أثناء التسجيل. يرجى المحاولة مرة أخرى.')
     }
   }
 
@@ -68,10 +68,7 @@ export function WaitlistForm() {
         className="flex flex-col items-center gap-4 rounded-2xl border border-accent-green/30 bg-accent-green/10 p-8 text-center"
       >
         <div className="flex h-14 w-14 items-center justify-center rounded-full bg-accent-green text-accent-green-foreground">
-          <CheckCircle2
-            className="h-8 w-8"
-            aria-hidden="true"
-          />
+          <CheckCircle2 className="h-8 w-8" aria-hidden="true" />
         </div>
 
         <p className="font-display text-xl font-bold text-foreground">
@@ -175,7 +172,7 @@ export function WaitlistForm() {
         </p>
       </div>
 
-      {/* LinkedIn */}
+      {/* LinkedIn - Optional */}
       <div className="relative">
         <label
           htmlFor="linkedin"
@@ -199,9 +196,13 @@ export function WaitlistForm() {
           autoComplete="url"
           value={linkedin}
           onChange={(e) => setLinkedin(e.target.value)}
-          placeholder="https://linkedin.com/in/yourname"
+          placeholder="https://linkedin.com/in/your-profile"
           className="h-13 w-full rounded-xl border border-input bg-secondary pr-12 pl-4 text-base text-foreground placeholder:text-muted-foreground focus:border-accent-green focus:outline-none focus:ring-2 focus:ring-accent-green/40"
         />
+
+        <p className="mt-1.5 text-xs text-muted-foreground">
+          يمكنك ترك هذه الخانة فارغة إذا لم يكن لديك حساب LinkedIn.
+        </p>
       </div>
 
       {/* Error */}
