@@ -26,8 +26,6 @@ export async function joinWaitlist(
   const email = payload.email.trim().toLowerCase()
   const skills = payload.skills.trim()
 
-  // LinkedIn is optional.
-  // Empty, undefined, or null becomes null.
   const linkedin =
     typeof payload.linkedin === 'string'
       ? payload.linkedin.trim()
