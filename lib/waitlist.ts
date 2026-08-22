@@ -1,56 +1,92 @@
-// إعدادات الاتصال بقاعدة بيانات Supabase (المفتاح publishable آمن للاستخدام من جهة العميل)
-const SUPABASE_REST_URL = 'https://ooskmzbwolukflnxfhzg.supabase.co/rest/v1'
-const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable__oHvQA9VpoE9rQ6pTDbG0A_CCNlS3tg'
-
-const TABLE = 'waitlist'
-const EMAIL_COLUMN = 'Email'
+export type TalentPayload = {
+  fullName: string
+  email: string
+  skills: string
+  linkedin: string
+}
 
 export type JoinResult =
-  | { ok: true }
-  | { ok: false; reason: 'duplicate' | 'invalid' | 'error' }
+  | {
+      ok: true
+      webhookDelivered: boolean
+    }
+  | {
+      ok: false
+      reason: 'duplicate' | 'invalid' | 'error'
+    }
 
 export function isValidEmail(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
 }
 
-export async function joinWaitlist(email: string): Promise<JoinResult> {
-  const trimmed = email.trim().toLowerCase()
+export async function joinWaitlist(
+  payload: TalentPayload
+): Promise<JoinResult> {
+  const fullName = payload.fullName.trim()
+  const email = payload.email.trim().toLowerCase()
+  const skills = payload.skills.trim()
+  const linkedin = payload.linkedin.trim()
 
-  if (!isValidEmail(trimmed)) {
-    return { ok: false, reason: 'invalid' }
+  if (
+    fullName.length < 2 ||
+    !isValidEmail(email) ||
+    skills.length === 0
+  ) {
+    return {
+      ok: false,
+      reason: 'invalid',
+    }
   }
 
   try {
-    const res = await fetch(`${SUPABASE_REST_URL}/${TABLE}`, {
+    const response = await fetch('/api/talent', {
       method: 'POST',
       headers: {
-        apikey: SUPABASE_PUBLISHABLE_KEY,
-        Authorization: `Bearer ${SUPABASE_PUBLISHABLE_KEY}`,
         'Content-Type': 'application/json',
-        Prefer: 'return=minimal',
       },
-      body: JSON.stringify({ [EMAIL_COLUMN]: trimmed }),
+      body: JSON.stringify({
+        full_name: fullName,
+        email,
+        skills,
+        linkedin,
+      }),
     })
 
-    if (res.ok) {
-      return { ok: true }
+    const data = await response.json().catch(() => null)
+
+    if (response.ok) {
+      return {
+        ok: true,
+        webhookDelivered: Boolean(data?.webhookDelivered),
+      }
     }
 
-    // 409 = تعارض (البريد مسجّل مسبقاً)
-    if (res.status === 409) {
-      return { ok: false, reason: 'duplicate' }
+    if (response.status === 409) {
+      return {
+        ok: false,
+        reason: 'duplicate',
+      }
     }
 
-    const message = await res.text()
-    console.log('[v0] Supabase waitlist error:', res.status, message)
-
-    if (message.includes('duplicate') || message.includes('unique')) {
-      return { ok: false, reason: 'duplicate' }
+    if (response.status === 400) {
+      return {
+        ok: false,
+        reason: 'invalid',
+      }
     }
 
-    return { ok: false, reason: 'error' }
-  } catch (err) {
-    console.log('[v0] Supabase waitlist request failed:', err)
-    return { ok: false, reason: 'error' }
+    console.error('Talent signup error:', data)
+
+    return {
+      ok: false,
+      reason: 'error',
+    }
+  } catch (error) {
+    console.error('Talent signup request failed:', error)
+
+    return {
+      ok: false,
+      reason: 'error',
+    }
   }
 }
