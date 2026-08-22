@@ -9,7 +9,6 @@ import {
   Mail,
   Code2,
 } from 'lucide-react'
-import { joinWaitlist } from '@/lib/waitlist'
 
 type Status = 'idle' | 'loading' | 'success' | 'error'
 
@@ -29,33 +28,74 @@ export function WaitlistForm() {
     setStatus('loading')
     setErrorMsg('')
 
-    // LinkedIn is optional. Empty value is sent as null.
-    const linkedinValue = linkedin.trim() || null
+    const fullNameValue = fullName.trim()
+    const emailValue = email.trim().toLowerCase()
+    const skillsValue = skills.trim()
+    const linkedinValue = linkedin.trim()
 
-    const result = await joinWaitlist({
-      fullName: fullName.trim(),
-      email: email.trim(),
-      skills: skills.trim(),
-      linkedin: linkedinValue,
-    })
-
-    if (result.ok) {
-      setStatus('success')
-      setFullName('')
-      setEmail('')
-      setSkills('')
-      setLinkedin('')
+    if (
+      fullNameValue.length < 2 ||
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailValue) ||
+      skillsValue.length === 0
+    ) {
+      setStatus('error')
+      setErrorMsg(
+        'يرجى التأكد من إدخال الاسم والبريد الإلكتروني والمهارات بشكل صحيح.'
+      )
       return
     }
 
-    setStatus('error')
+    try {
+      const response = await fetch('/api/talent', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          full_name: fullNameValue,
+          email: emailValue,
+          skills: skillsValue,
+          linkedin: linkedinValue || null,
+        }),
+      })
 
-    if (result.reason === 'invalid') {
-      setErrorMsg('يرجى التأكد من إدخال جميع البيانات المطلوبة بشكل صحيح.')
-    } else if (result.reason === 'duplicate') {
-      setErrorMsg('هذا البريد الإلكتروني مسجّل بالفعل.')
-    } else {
+      const data = await response.json().catch(() => null)
+
+      if (response.ok) {
+        setStatus('success')
+        setFullName('')
+        setEmail('')
+        setSkills('')
+        setLinkedin('')
+        return
+      }
+
+      if (response.status === 409) {
+        setStatus('error')
+        setErrorMsg('هذا البريد الإلكتروني مسجّل بالفعل.')
+        return
+      }
+
+      if (response.status === 400) {
+        setStatus('error')
+        setErrorMsg(
+          data?.error ||
+            'يرجى التأكد من إدخال جميع البيانات المطلوبة بشكل صحيح.'
+        )
+        return
+      }
+
+      console.error('Talent signup API error:', data)
+
+      setStatus('error')
       setErrorMsg('حدث خطأ أثناء التسجيل. يرجى المحاولة مرة أخرى.')
+    } catch (error) {
+      console.error('Talent signup request failed:', error)
+
+      setStatus('error')
+      setErrorMsg(
+        'تعذر الاتصال بالخادم. يرجى المحاولة مرة أخرى.'
+      )
     }
   }
 
@@ -83,7 +123,11 @@ export function WaitlistForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="w-full space-y-4" noValidate>
+    <form
+      onSubmit={handleSubmit}
+      className="w-full space-y-4"
+      noValidate
+    >
       {/* Full Name */}
       <div className="relative">
         <label
@@ -174,7 +218,9 @@ export function WaitlistForm() {
           className="mb-2 block text-sm font-medium text-foreground"
         >
           LinkedIn
-          <span className="mr-1 text-xs text-muted-foreground">(اختياري)</span>
+          <span className="mr-1 text-xs text-muted-foreground">
+            (اختياري)
+          </span>
         </label>
 
         <Code2
@@ -216,7 +262,10 @@ export function WaitlistForm() {
       >
         {status === 'loading' ? (
           <>
-            <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" />
+            <Loader2
+              className="h-5 w-5 animate-spin"
+              aria-hidden="true"
+            />
             جارٍ التسجيل...
           </>
         ) : (
