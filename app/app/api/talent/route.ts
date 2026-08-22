@@ -15,7 +15,7 @@ function isValidEmail(email: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
 }
 
-function parseSkills(value: unknown) {
+function parseSkills(value: unknown): string[] {
   return String(value ?? '')
     .split(',')
     .map((skill) => skill.trim())
@@ -31,7 +31,10 @@ function isValidLinkedIn(value: string) {
 
     return (
       ['http:', 'https:'].includes(url.protocol) &&
-      url.hostname.toLowerCase().endsWith('linkedin.com')
+      (
+        url.hostname.toLowerCase() === 'linkedin.com' ||
+        url.hostname.toLowerCase().endsWith('.linkedin.com')
+      )
     )
   } catch {
     return false
@@ -47,6 +50,7 @@ export async function POST(request: Request) {
     const skills = parseSkills(body.skills)
     const linkedin = String(body.linkedin ?? '').trim()
 
+    // Required fields
     if (fullName.length < 2 || fullName.length > 120) {
       return NextResponse.json(
         { error: 'Invalid full name' },
@@ -68,6 +72,7 @@ export async function POST(request: Request) {
       )
     }
 
+    // LinkedIn is optional
     if (!isValidLinkedIn(linkedin)) {
       return NextResponse.json(
         { error: 'Invalid LinkedIn URL' },
@@ -75,8 +80,15 @@ export async function POST(request: Request) {
       )
     }
 
+    /*
+     * IMPORTANT:
+     * Do not send id or created_at.
+     * Supabase should generate them automatically.
+     *
+     * skills is sent as an array because the Supabase column
+     * is text[].
+     */
     const talent = {
-      id: crypto.randomUUID(),
       full_name: fullName,
       email,
       skills,
@@ -85,7 +97,7 @@ export async function POST(request: Request) {
 
     /*
      * STEP 1
-     * Save the talent to Supabase.
+     * Insert talent into Supabase.
      */
 
     const supabaseResponse = await fetch(
@@ -103,26 +115,48 @@ export async function POST(request: Request) {
       }
     )
 
-    const supabaseData =
-      await supabaseResponse.json().catch(() => null)
+    const supabaseText = await supabaseResponse.text()
+
+    let supabaseData: any = null
+
+    try {
+      supabaseData = supabaseText
+        ? JSON.parse(supabaseText)
+        : null
+    } catch {
+      supabaseData = supabaseText
+    }
 
     if (!supabaseResponse.ok) {
-      const message = String(
-        supabaseData?.message ??
-        supabaseData?.hint ??
-        ''
-      )
+      const message =
+        typeof supabaseData === 'object' && supabaseData
+          ? String(
+              supabaseData.message ??
+                supabaseData.hint ??
+                supabaseData.details ??
+                ''
+            )
+          : String(supabaseData ?? '')
 
+      /*
+       * Duplicate email
+       */
       if (
         supabaseResponse.status === 409 ||
         /duplicate|unique/i.test(message)
       ) {
         return NextResponse.json(
-          { error: 'This email is already registered.' },
+          {
+            error: 'This email is already registered.',
+          },
           { status: 409 }
         )
       }
 
+      /*
+       * Return the actual Supabase error temporarily.
+       * This makes debugging possible without Vercel logs.
+       */
       console.error(
         'Supabase talents INSERT failed:',
         supabaseResponse.status,
@@ -130,7 +164,11 @@ export async function POST(request: Request) {
       )
 
       return NextResponse.json(
-        { error: 'Could not save talent profile.' },
+        {
+          error: 'Supabase insert failed.',
+          status: supabaseResponse.status,
+          details: supabaseData,
+        },
         { status: 502 }
       )
     }
@@ -141,19 +179,15 @@ export async function POST(request: Request) {
 
     /*
      * STEP 2
-     * ONLY after Supabase succeeds,
-     * trigger Pipedream.
+     * Trigger Pipedream ONLY after Supabase succeeds.
      */
 
     if (!PIPEDREAM_WEBHOOK_URL) {
-      console.error(
-        'PIPEDREAM_WEBHOOK_URL is not configured.'
-      )
-
       return NextResponse.json(
         {
           success: true,
           webhookDelivered: false,
+          warning: 'PIPEDREAM_WEBHOOK_URL is not configured.',
         },
         { status: 201 }
       )
@@ -199,16 +233,15 @@ export async function POST(request: Request) {
         { status: 201 }
       )
     } catch (error) {
-      /*
-       * Supabase already succeeded.
-       * Therefore do NOT tell the user that signup failed.
-       */
-
       console.error(
         'Pipedream webhook request failed:',
         error
       )
 
+      /*
+       * Supabase succeeded.
+       * Therefore signup remains successful.
+       */
       return NextResponse.json(
         {
           success: true,
@@ -222,7 +255,11 @@ export async function POST(request: Request) {
 
     return NextResponse.json(
       {
-        error: 'Unexpected server error',
+        error: 'Unexpected server error.',
+        details:
+          error instanceof Error
+            ? error.message
+            : String(error),
       },
       { status: 500 }
     )
