@@ -114,7 +114,7 @@ export function WaitlistForm() {
           minLength={2}
           value={fullName}
           onChange={(e) => setFullName(e.target.value)}
-          placeholder="مثال: Nassim Dissi"
+          placeholder="Your full name"
           className="h-13 w-full rounded-xl border border-input bg-secondary pr-12 pl-4 text-base text-foreground placeholder:text-muted-foreground focus:border-accent-green focus:outline-none focus:ring-2 focus:ring-accent-green/40"
         />
       </div>
