@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, type FormEvent } from 'react'
-import { ArrowLeft, CheckCircle2, Loader2, User, Mail, Code2, Linkedin } from 'lucide-react'
+import { ArrowLeft, CheckCircle2, Loader2, User, Mail, Code2 } from "lucide-react"
 import { joinWaitlist } from '@/lib/waitlist'
 
 type Status = 'idle' | 'loading' | 'success' | 'error'
@@ -161,30 +161,30 @@ export function WaitlistForm() {
         </p>
       </div>
 
-      {/* LinkedIn */}
+      {/* Code2 */}
       <div className="relative">
         <label
-          htmlFor="linkedin"
+          htmlFor="Code2"
           className="mb-2 block text-sm font-medium text-foreground"
         >
-          LinkedIn
+          Code2
           <span className="mr-1 text-xs text-muted-foreground">
             (اختياري)
           </span>
         </label>
 
-        <Linkedin
+        <Code2
           className="pointer-events-none absolute right-4 top-[42px] h-5 w-5 text-muted-foreground"
           aria-hidden="true"
         />
 
         <input
-          id="linkedin"
+          id="Code2"
           type="url"
           inputMode="url"
           autoComplete="url"
-          value={linkedin}
-          onChange={(e) => setLinkedin(e.target.value)}
+          value={Code2}
+          onChange={(e) => setCode2(e.target.value)}
           placeholder="https://linkedin.com/in/yourname"
           className="h-13 w-full rounded-xl border border-input bg-secondary pr-12 pl-4 text-base text-foreground placeholder:text-muted-foreground focus:border-accent-green focus:outline-none focus:ring-2 focus:ring-accent-green/40"
         />
