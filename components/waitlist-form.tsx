@@ -1,7 +1,14 @@
 'use client'
 
 import { useState, type FormEvent } from 'react'
-import { ArrowLeft, CheckCircle2, Loader2, User, Mail, Code2 } from "lucide-react"
+import {
+  ArrowLeft,
+  CheckCircle2,
+  Loader2,
+  User,
+  Mail,
+  Code2,
+} from 'lucide-react'
 import { joinWaitlist } from '@/lib/waitlist'
 
 type Status = 'idle' | 'loading' | 'success' | 'error'
@@ -41,11 +48,15 @@ export function WaitlistForm() {
     setStatus('error')
 
     if (result.reason === 'invalid') {
-      setErrorMsg('يرجى التأكد من إدخال جميع البيانات المطلوبة بشكل صحيح.')
+      setErrorMsg(
+        'يرجى التأكد من إدخال جميع البيانات المطلوبة بشكل صحيح.'
+      )
     } else if (result.reason === 'duplicate') {
       setErrorMsg('هذا البريد الإلكتروني مسجّل بالفعل.')
     } else {
-      setErrorMsg('حدث خطأ أثناء التسجيل. يرجى المحاولة مرة أخرى.')
+      setErrorMsg(
+        'حدث خطأ أثناء التسجيل. يرجى المحاولة مرة أخرى.'
+      )
     }
   }
 
@@ -57,7 +68,10 @@ export function WaitlistForm() {
         className="flex flex-col items-center gap-4 rounded-2xl border border-accent-green/30 bg-accent-green/10 p-8 text-center"
       >
         <div className="flex h-14 w-14 items-center justify-center rounded-full bg-accent-green text-accent-green-foreground">
-          <CheckCircle2 className="h-8 w-8" aria-hidden="true" />
+          <CheckCircle2
+            className="h-8 w-8"
+            aria-hidden="true"
+          />
         </div>
 
         <p className="font-display text-xl font-bold text-foreground">
@@ -161,13 +175,13 @@ export function WaitlistForm() {
         </p>
       </div>
 
-      {/* Code2 */}
+      {/* LinkedIn */}
       <div className="relative">
         <label
-          htmlFor="Code2"
+          htmlFor="linkedin"
           className="mb-2 block text-sm font-medium text-foreground"
         >
-          Code2
+          LinkedIn
           <span className="mr-1 text-xs text-muted-foreground">
             (اختياري)
           </span>
@@ -179,12 +193,12 @@ export function WaitlistForm() {
         />
 
         <input
-          id="Code2"
+          id="linkedin"
           type="url"
           inputMode="url"
           autoComplete="url"
-          value={Code2}
-          onChange={(e) => setCode2(e.target.value)}
+          value={linkedin}
+          onChange={(e) => setLinkedin(e.target.value)}
           placeholder="https://linkedin.com/in/yourname"
           className="h-13 w-full rounded-xl border border-input bg-secondary pr-12 pl-4 text-base text-foreground placeholder:text-muted-foreground focus:border-accent-green focus:outline-none focus:ring-2 focus:ring-accent-green/40"
         />
