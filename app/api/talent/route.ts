@@ -119,7 +119,7 @@ export async function POST(request: Request) {
 
     const supabaseText = await supabaseResponse.text()
 
-    let supabaseData: any = null
+    let supabaseData: unknown = null
 
     try {
       supabaseData = supabaseText
@@ -133,9 +133,9 @@ export async function POST(request: Request) {
       const message =
         typeof supabaseData === 'object' && supabaseData
           ? String(
-              supabaseData.message ??
-                supabaseData.hint ??
-                supabaseData.details ??
+              (supabaseData as Record<string, unknown>).message ??
+                (supabaseData as Record<string, unknown>).hint ??
+                (supabaseData as Record<string, unknown>).details ??
                 ''
             )
           : String(supabaseData ?? '')
