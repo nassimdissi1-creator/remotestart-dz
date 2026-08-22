@@ -26,14 +26,13 @@ export async function joinWaitlist(
   const email = payload.email.trim().toLowerCase()
   const skills = payload.skills.trim()
 
-  // LinkedIn is completely optional.
-  // Empty string, whitespace, or null becomes null.
+  // LinkedIn is optional.
+  // Empty, undefined, or null becomes null.
   const linkedin =
-    typeof payload.linkedin === 'string' && payload.linkedin.trim().length > 0
+    typeof payload.linkedin === 'string'
       ? payload.linkedin.trim()
-      : null
+      : ''
 
-  // Validate only the required fields.
   if (
     fullName.length < 2 ||
     !isValidEmail(email) ||
@@ -45,12 +44,6 @@ export async function joinWaitlist(
     }
   }
 
-  // Prevent the form from staying on "جارٍ التسجيل..." forever.
-  const controller = new AbortController()
-  const timeout = setTimeout(() => {
-    controller.abort()
-  }, 15000)
-
   try {
     const response = await fetch('/api/talent', {
       method: 'POST',
@@ -61,9 +54,8 @@ export async function joinWaitlist(
         full_name: fullName,
         email,
         skills,
-        linkedin,
+        linkedin: linkedin || null,
       }),
-      signal: controller.signal,
     })
 
     const data = await response.json().catch(() => null)
@@ -89,27 +81,18 @@ export async function joinWaitlist(
       }
     }
 
-    console.error('Talent signup error:', {
-      status: response.status,
-      data,
-    })
+    console.error('Talent signup error:', data)
 
     return {
       ok: false,
       reason: 'error',
     }
   } catch (error) {
-    if (error instanceof DOMException && error.name === 'AbortError') {
-      console.error('Talent signup request timed out.')
-    } else {
-      console.error('Talent signup request failed:', error)
-    }
+    console.error('Talent signup request failed:', error)
 
     return {
       ok: false,
       reason: 'error',
     }
-  } finally {
-    clearTimeout(timeout)
   }
 }
