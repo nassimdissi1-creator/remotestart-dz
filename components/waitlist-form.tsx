@@ -29,8 +29,7 @@ export function WaitlistForm() {
     setStatus('loading')
     setErrorMsg('')
 
-    // LinkedIn اختياري:
-    // إذا كانت الخانة فارغة، نرسل null بدل رابط فارغ.
+    // LinkedIn is optional. Empty value is sent as null.
     const linkedinValue = linkedin.trim() || null
 
     const result = await joinWaitlist({
@@ -84,11 +83,7 @@ export function WaitlistForm() {
   }
 
   return (
-    <form
-      onSubmit={handleSubmit}
-      className="w-full space-y-4"
-      noValidate
-    >
+    <form onSubmit={handleSubmit} className="w-full space-y-4" noValidate>
       {/* Full Name */}
       <div className="relative">
         <label
@@ -179,9 +174,7 @@ export function WaitlistForm() {
           className="mb-2 block text-sm font-medium text-foreground"
         >
           LinkedIn
-          <span className="mr-1 text-xs text-muted-foreground">
-            (اختياري)
-          </span>
+          <span className="mr-1 text-xs text-muted-foreground">(اختياري)</span>
         </label>
 
         <Code2
@@ -223,10 +216,7 @@ export function WaitlistForm() {
       >
         {status === 'loading' ? (
           <>
-            <Loader2
-              className="h-5 w-5 animate-spin"
-              aria-hidden="true"
-            />
+            <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" />
             جارٍ التسجيل...
           </>
         ) : (
