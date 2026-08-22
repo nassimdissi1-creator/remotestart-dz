@@ -2,7 +2,7 @@ export type TalentPayload = {
   fullName: string
   email: string
   skills: string
-  linkedin: string
+  linkedin?: string | null
 }
 
 export type JoinResult =
@@ -25,8 +25,15 @@ export async function joinWaitlist(
   const fullName = payload.fullName.trim()
   const email = payload.email.trim().toLowerCase()
   const skills = payload.skills.trim()
-  const linkedin = payload.linkedin.trim()
 
+  // LinkedIn is completely optional.
+  // Empty string, whitespace, or null becomes null.
+  const linkedin =
+    typeof payload.linkedin === 'string' && payload.linkedin.trim().length > 0
+      ? payload.linkedin.trim()
+      : null
+
+  // Validate only the required fields.
   if (
     fullName.length < 2 ||
     !isValidEmail(email) ||
@@ -37,6 +44,12 @@ export async function joinWaitlist(
       reason: 'invalid',
     }
   }
+
+  // Prevent the form from staying on "جارٍ التسجيل..." forever.
+  const controller = new AbortController()
+  const timeout = setTimeout(() => {
+    controller.abort()
+  }, 15000)
 
   try {
     const response = await fetch('/api/talent', {
@@ -50,6 +63,7 @@ export async function joinWaitlist(
         skills,
         linkedin,
       }),
+      signal: controller.signal,
     })
 
     const data = await response.json().catch(() => null)
@@ -75,18 +89,27 @@ export async function joinWaitlist(
       }
     }
 
-    console.error('Talent signup error:', data)
+    console.error('Talent signup error:', {
+      status: response.status,
+      data,
+    })
 
     return {
       ok: false,
       reason: 'error',
     }
   } catch (error) {
-    console.error('Talent signup request failed:', error)
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      console.error('Talent signup request timed out.')
+    } else {
+      console.error('Talent signup request failed:', error)
+    }
 
     return {
       ok: false,
       reason: 'error',
     }
+  } finally {
+    clearTimeout(timeout)
   }
 }
