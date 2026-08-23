@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, type FormEvent } from 'react'
-import { ArrowLeft, CheckCircle2, Loader2, User, Mail, Sparkles, Linkedin } from 'lucide-react'
+import { ArrowLeft, CheckCircle2, Loader2, User, Mail, Sparkles, Link2 } from 'lucide-react'
 
 type Status = 'idle' | 'loading' | 'success' | 'error'
 
@@ -74,19 +74,19 @@ export function WaitlistForm() {
   return (
     <form onSubmit={handleSubmit} className="space-y-4" noValidate>
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="الاسم الكامل" icon={<User className="h-4 w-4" />}>
+        <Field label="الاسم الكامل" htmlFor="full-name" icon={<User className="h-4 w-4" />}>
           <input id="full-name" name="full_name" type="text" autoComplete="name" required minLength={2} value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="محمد بن علي" className={fieldClass} />
         </Field>
-        <Field label="البريد الإلكتروني" icon={<Mail className="h-4 w-4" />}>
+        <Field label="البريد الإلكتروني" htmlFor="email" icon={<Mail className="h-4 w-4" />}>
           <input id="email" name="email" type="email" inputMode="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" className={fieldClass} />
         </Field>
       </div>
 
-      <Field label="أهم مهاراتك" icon={<Sparkles className="h-4 w-4" />} hint="افصل المهارات بفاصلة">
+      <Field label="أهم مهاراتك" htmlFor="skills" icon={<Sparkles className="h-4 w-4" />} hint="افصل المهارات بفاصلة">
         <input id="skills" name="skills" type="text" required value={skills} onChange={(e) => setSkills(e.target.value)} placeholder="Marketing, Customer Support, Shopify" className={fieldClass} />
       </Field>
 
-      <Field label="LinkedIn" icon={<Linkedin className="h-4 w-4" />} hint="اختياري">
+      <Field label="LinkedIn" htmlFor="linkedin" icon={<Link2 className="h-4 w-4" />} hint="اختياري">
         <input id="linkedin" name="linkedin" type="url" inputMode="url" autoComplete="url" value={linkedin} onChange={(e) => setLinkedin(e.target.value)} placeholder="https://linkedin.com/in/your-profile" className={fieldClass} />
       </Field>
 
@@ -100,10 +100,10 @@ export function WaitlistForm() {
   )
 }
 
-function Field({ label, icon, hint, children }: { label: string; icon: React.ReactNode; hint?: string; children: React.ReactNode }) {
+function Field({ label, htmlFor, icon, hint, children }: { label: string; htmlFor: string; icon: React.ReactNode; hint?: string; children: React.ReactNode }) {
   return (
     <div>
-      <div className="mb-2 flex items-center gap-2 text-xs font-bold text-slate-300"><span className="text-[#d8b56b]">{icon}</span><label htmlFor={label}>{label}</label>{hint && <span className="font-normal text-slate-600">({hint})</span>}</div>
+      <div className="mb-2 flex items-center gap-2 text-xs font-bold text-slate-300"><span className="text-[#d8b56b]">{icon}</span><label htmlFor={htmlFor}>{label}</label>{hint && <span className="font-normal text-slate-600">({hint})</span>}</div>
       {children}
     </div>
   )
