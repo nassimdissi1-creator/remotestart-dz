@@ -1,47 +1,67 @@
 import Image from 'next/image'
-import { Sparkles } from 'lucide-react'
+import { ArrowLeft, CheckCircle2, Globe2, Sparkles } from 'lucide-react'
 import { WaitlistForm } from '@/components/waitlist-form'
 
 export function Hero() {
   return (
-    <section className="relative overflow-hidden">
-      {/* توهج خفيف في الخلفية */}
-      <div
-        aria-hidden="true"
-        className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_top_left,theme(colors.accent-green/0.14),transparent_45%)]"
-      />
+    <section className="relative mx-auto max-w-7xl px-6 pb-20 pt-10 lg:px-8 lg:pb-28 lg:pt-16">
+      <div className="grid items-center gap-14 lg:grid-cols-[1.05fr_.95fr] lg:gap-16">
+        <div className="flex flex-col items-start" dir="rtl">
+          <div className="mb-7 inline-flex items-center gap-2 rounded-full border border-[#d8b56b]/25 bg-[#d8b56b]/10 px-4 py-2 text-xs font-bold text-[#e4c47f]">
+            <Sparkles className="h-4 w-4" />
+            منصة الجيل الجديد للعمل عن بعد
+          </div>
 
-      <div className="mx-auto grid max-w-6xl items-center gap-12 px-6 py-16 lg:grid-cols-2 lg:gap-8 lg:py-24">
-        <div className="flex flex-col items-start gap-6">
-          <span className="inline-flex items-center gap-2 rounded-full border border-accent-green/30 bg-accent-green/10 px-4 py-1.5 text-sm font-medium text-accent-green">
-            <Sparkles className="h-4 w-4" aria-hidden="true" />
-            مطابقة الوظائف بالذكاء الاصطناعي
-          </span>
-
-          <h1 className="text-balance font-display text-4xl font-extrabold leading-tight text-foreground sm:text-5xl lg:text-6xl">
-            اكتشف فرص عمل عالمية موثوقة وأنت في الجزائر
+          <h1 className="max-w-3xl font-display text-4xl font-black leading-[1.15] tracking-tight text-white sm:text-5xl lg:text-[4.35rem]">
+            ابنِ مسيرتك المهنية العالمية <span className="text-[#d8b56b]">من الجزائر.</span>
           </h1>
 
-          <p className="max-w-xl text-pretty text-lg leading-relaxed text-muted-foreground">
-            سجّل الآن لتكون أول من يجرب تقنية المطابقة بالذكاء الاصطناعي للحصول
-            على وظيفتك القادمة.
+          <p className="mt-7 max-w-2xl text-lg leading-9 text-slate-300 sm:text-xl">
+            RemoteStart-DZ تربط المواهب الجزائرية بالفرص العالمية الموثوقة، مع تجربة احترافية مصممة لتساعدك على الوصول إلى العمل الذي تستحقه.
           </p>
 
-          <div className="w-full max-w-xl">
-            <WaitlistForm />
+          <div className="mt-8 flex flex-wrap gap-x-6 gap-y-3 text-sm text-slate-300">
+            <span className="inline-flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-[#d8b56b]" /> شركات موثوقة</span>
+            <span className="inline-flex items-center gap-2"><Globe2 className="h-4 w-4 text-[#d8b56b]" /> فرص عالمية</span>
           </div>
+
+          <div id="signup" className="mt-10 w-full max-w-xl scroll-mt-8">
+            <div className="rounded-2xl border border-white/10 bg-white/[.045] p-5 shadow-2xl shadow-black/20 backdrop-blur sm:p-6">
+              <div className="mb-5">
+                <p className="font-display text-lg font-bold text-white">أنشئ ملفك المهني</p>
+                <p className="mt-1 text-sm text-slate-400">سجّل الآن وسنخبرك عند إطلاق أول فرص المطابقة.</p>
+              </div>
+              <WaitlistForm />
+            </div>
+          </div>
+
+          <a href="#why" className="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-slate-400 transition hover:text-[#d8b56b]">
+            اكتشف كيف تعمل المنصة <ArrowLeft className="h-4 w-4" />
+          </a>
         </div>
 
-        <div className="relative">
-          <div className="relative overflow-hidden rounded-3xl border border-border bg-card shadow-2xl shadow-black/40">
-            <Image
-              src="/hero-remote.png"
-              alt="محترف جزائري يعمل عن بعد من مكتبه المنزلي عبر الحاسوب المحمول"
-              width={1024}
-              height={1024}
-              priority
-              className="h-full w-full object-cover"
-            />
+        <div className="relative mx-auto w-full max-w-xl lg:max-w-none" dir="ltr">
+          <div aria-hidden className="absolute -inset-5 rounded-[2rem] bg-[#d8b56b]/10 blur-3xl" />
+          <div className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-[#0c1e38] p-2 shadow-2xl shadow-black/40">
+            <div className="relative overflow-hidden rounded-[1.5rem]">
+              <Image
+                src="/hero-remote.png"
+                alt="Professional working remotely with a laptop"
+                width={1024}
+                height={1024}
+                priority
+                className="aspect-[4/5] w-full object-cover"
+              />
+              <div className="absolute inset-x-4 bottom-4 rounded-2xl border border-white/10 bg-[#071426]/85 p-4 backdrop-blur-xl sm:inset-x-6 sm:bottom-6">
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <p className="text-xs font-semibold text-[#d8b56b]">GLOBAL CAREER SIGNAL</p>
+                    <p className="mt-1 text-sm font-bold text-white">Ready for your next remote role</p>
+                  </div>
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#d8b56b] text-[#071426]"><Globe2 className="h-5 w-5" /></div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
