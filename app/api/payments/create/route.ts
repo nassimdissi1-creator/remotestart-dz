@@ -3,13 +3,8 @@ import { PRICING, type PaymentMethod, type ProductCode } from '@/lib/monetizatio
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
-
-const checkoutLinks: Partial<Record<ProductCode, string | undefined>> = {
-  talent_pro: process.env.REDOTPAY_TALENT_PRO_URL,
-  ai_cv_review: process.env.REDOTPAY_AI_CV_REVIEW_URL,
-  job_standard: process.env.REDOTPAY_JOB_STANDARD_URL,
-  job_featured: process.env.REDOTPAY_JOB_FEATURED_URL,
-}
+const REDOTPAY_PERSONAL_PAYMENT_URL = process.env.REDOTPAY_PERSONAL_PAYMENT_URL
+const REDOTPAY_WALLET_ADDRESS = process.env.REDOTPAY_WALLET_ADDRESS
 
 function getSupabaseHeaders() {
   if (!SUPABASE_SERVICE_ROLE_KEY) throw new Error('SUPABASE_SERVICE_ROLE_KEY is not configured')
@@ -43,11 +38,8 @@ export async function POST(request: Request) {
     if (!/^\S+@\S+\.\S+$/.test(customerEmail)) return NextResponse.json({ error: 'Valid email is required.' }, { status: 400 })
 
     const plan = PRICING[product]
-    if (paymentMethod === 'baridimob' && product.startsWith('job_')) {
-      return NextResponse.json({ error: 'BaridiMob is currently available for talent purchases only.' }, { status: 400 })
-    }
-
     const reference = buildReference(product)
+
     const insertResponse = await fetch(`${SUPABASE_URL}/rest/v1/payment_orders`, {
       method: 'POST',
       headers: { ...getSupabaseHeaders(), Prefer: 'return=representation' },
@@ -65,8 +57,7 @@ export async function POST(request: Request) {
     })
 
     if (!insertResponse.ok) {
-      const error = await insertResponse.text()
-      console.error('Payment order creation failed:', error)
+      console.error('Payment order creation failed:', await insertResponse.text())
       return NextResponse.json({ error: 'Could not create payment order.' }, { status: 502 })
     }
 
@@ -76,28 +67,34 @@ export async function POST(request: Request) {
         reference,
         amount: plan.amount,
         paymentMethod,
-        requiresReceipt: true,
+        requiresProof: true,
       }, { status: 201 })
     }
 
-    const baseUrl = checkoutLinks[product]
-    if (!baseUrl) {
+    if (!REDOTPAY_PERSONAL_PAYMENT_URL && !REDOTPAY_WALLET_ADDRESS) {
       return NextResponse.json({
-        error: 'RedotPay checkout is not configured for this product yet.',
+        error: 'Personal RedotPay payment link or wallet address is not configured yet.',
         reference,
       }, { status: 503 })
     }
 
-    const checkoutUrl = new URL(baseUrl)
-    checkoutUrl.searchParams.set('reference', reference)
-    checkoutUrl.searchParams.set('email', customerEmail)
+    let paymentUrl: string | null = null
+    if (REDOTPAY_PERSONAL_PAYMENT_URL) {
+      const url = new URL(REDOTPAY_PERSONAL_PAYMENT_URL)
+      url.searchParams.set('reference', reference)
+      url.searchParams.set('email', customerEmail)
+      url.searchParams.set('amount', String(plan.amount))
+      paymentUrl = url.toString()
+    }
 
     return NextResponse.json({
       success: true,
       reference,
       amount: plan.amount,
       paymentMethod,
-      checkoutUrl: checkoutUrl.toString(),
+      paymentUrl,
+      walletAddress: REDOTPAY_WALLET_ADDRESS || null,
+      requiresProof: true,
     }, { status: 201 })
   } catch (error) {
     console.error('Payment creation error:', error)
