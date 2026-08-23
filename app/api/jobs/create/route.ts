@@ -5,57 +5,33 @@ const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
 const REDOTPAY_PERSONAL_PAYMENT_URL = process.env.REDOTPAY_PERSONAL_PAYMENT_URL
 const REDOTPAY_WALLET_ADDRESS = process.env.REDOTPAY_WALLET_ADDRESS
+const BARIDIMOB_CCP = process.env.BARIDIMOB_CCP
+const BARIDIMOB_RIP = process.env.BARIDIMOB_RIP
+const BARIDIMOB_ACCOUNT_NAME = process.env.BARIDIMOB_ACCOUNT_NAME
 
 export async function POST(request: Request) {
   try {
     if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) return NextResponse.json({ error: 'Server configuration is incomplete.' }, { status: 500 })
     const body = await request.json()
-    const companyName = String(body.company_name ?? '').trim()
-    const jobTitle = String(body.job_title ?? '').trim()
-    const salary = String(body.salary ?? '').trim()
-    const description = String(body.description ?? '').trim()
-    const contactEmail = String(body.contact_email ?? '').trim().toLowerCase()
+    const companyName = String(body.company_name ?? '').trim(), jobTitle = String(body.job_title ?? '').trim(), salary = String(body.salary ?? '').trim(), description = String(body.description ?? '').trim(), contactEmail = String(body.contact_email ?? '').trim().toLowerCase()
     const plan = body.plan === 'featured' ? 'featured' : 'standard'
+    const paymentMethod = body.payment_method === 'baridimob' ? 'baridimob' : 'redotpay'
+    if (companyName.length < 2 || jobTitle.length < 2 || description.length < 20 || !/^\S+@\S+\.\S+$/.test(contactEmail)) return NextResponse.json({ error: 'Please provide valid job and contact details.' }, { status: 400 })
 
-    if (companyName.length < 2 || jobTitle.length < 2 || description.length < 20 || !/^\S+@\S+\.\S+$/.test(contactEmail)) {
-      return NextResponse.json({ error: 'Please provide valid job and contact details.' }, { status: 400 })
-    }
-
-    const product = plan === 'featured' ? 'job_featured' : 'job_standard'
-    const price = PRICING[product].amount
+    const product = plan === 'featured' ? 'job_featured' : 'job_standard', price = PRICING[product].amount
     const headers = { apikey: SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`, 'Content-Type': 'application/json', Accept: 'application/json' }
     const reference = `RSDZ-${product.toUpperCase()}-${crypto.randomUUID()}`
-
-    const jobResponse = await fetch(`${SUPABASE_URL}/rest/v1/job_opportunities`, {
-      method: 'POST', headers: { ...headers, Prefer: 'return=representation' },
-      body: JSON.stringify({ company_name: companyName, job_title: jobTitle, salary: salary || null, description, contact_email: contactEmail, plan, price_usd: price }),
-    })
+    const jobResponse = await fetch(`${SUPABASE_URL}/rest/v1/job_opportunities`, { method: 'POST', headers: { ...headers, Prefer: 'return=representation' }, body: JSON.stringify({ company_name: companyName, job_title: jobTitle, salary: salary || null, description, contact_email: contactEmail, plan, price_usd: price }) })
     if (!jobResponse.ok) return NextResponse.json({ error: 'Could not create job draft.' }, { status: 502 })
     const job = (await jobResponse.json())[0]
-
-    const orderResponse = await fetch(`${SUPABASE_URL}/rest/v1/payment_orders`, {
-      method: 'POST', headers: { ...headers, Prefer: 'return=representation' },
-      body: JSON.stringify({ reference, customer_type: 'employer', customer_email: contactEmail, product_code: product, amount_usd: price, payment_method: 'redotpay', metadata: { job_id: job.id } }),
-    })
+    const orderResponse = await fetch(`${SUPABASE_URL}/rest/v1/payment_orders`, { method: 'POST', headers: { ...headers, Prefer: 'return=representation' }, body: JSON.stringify({ reference, customer_type: 'employer', customer_email: contactEmail, product_code: product, amount_usd: price, payment_method: paymentMethod, metadata: { job_id: job.id } }) })
     if (!orderResponse.ok) return NextResponse.json({ error: 'Job created but payment order could not be created.' }, { status: 502 })
     const order = (await orderResponse.json())[0]
 
-    if (!REDOTPAY_PERSONAL_PAYMENT_URL && !REDOTPAY_WALLET_ADDRESS) {
-      return NextResponse.json({ error: 'Personal RedotPay payment link or wallet address is not configured.', jobId: job.id, reference }, { status: 503 })
-    }
-
+    if (paymentMethod === 'baridimob') return NextResponse.json({ success: true, jobId: job.id, orderId: order.id, reference, amount: price, paymentMethod, requiresProof: true, baridimob: { ccp: BARIDIMOB_CCP || null, rip: BARIDIMOB_RIP || null, accountName: BARIDIMOB_ACCOUNT_NAME || null } }, { status: 201 })
+    if (!REDOTPAY_PERSONAL_PAYMENT_URL && !REDOTPAY_WALLET_ADDRESS) return NextResponse.json({ error: 'Personal RedotPay payment link or wallet address is not configured.', jobId: job.id, reference }, { status: 503 })
     let paymentUrl: string | null = null
-    if (REDOTPAY_PERSONAL_PAYMENT_URL) {
-      const url = new URL(REDOTPAY_PERSONAL_PAYMENT_URL)
-      url.searchParams.set('reference', reference)
-      url.searchParams.set('email', contactEmail)
-      url.searchParams.set('amount', String(price))
-      paymentUrl = url.toString()
-    }
-
-    return NextResponse.json({ success: true, jobId: job.id, orderId: order.id, reference, amount: price, paymentUrl, walletAddress: REDOTPAY_WALLET_ADDRESS || null, requiresProof: true }, { status: 201 })
-  } catch (error) {
-    console.error('Job creation error:', error)
-    return NextResponse.json({ error: 'Unexpected server error.' }, { status: 500 })
-  }
+    if (REDOTPAY_PERSONAL_PAYMENT_URL) { const url = new URL(REDOTPAY_PERSONAL_PAYMENT_URL); url.searchParams.set('reference', reference); url.searchParams.set('email', contactEmail); url.searchParams.set('amount', String(price)); paymentUrl = url.toString() }
+    return NextResponse.json({ success: true, jobId: job.id, orderId: order.id, reference, amount: price, paymentMethod, paymentUrl, walletAddress: REDOTPAY_WALLET_ADDRESS || null, requiresProof: true }, { status: 201 })
+  } catch (error) { console.error('Job creation error:', error); return NextResponse.json({ error: 'Unexpected server error.' }, { status: 500 }) }
 }
