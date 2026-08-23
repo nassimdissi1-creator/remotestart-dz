@@ -1,14 +1,7 @@
 'use client'
 
 import { useState, type FormEvent } from 'react'
-import {
-  ArrowLeft,
-  CheckCircle2,
-  Loader2,
-  User,
-  Mail,
-  Code2,
-} from 'lucide-react'
+import { ArrowLeft, CheckCircle2, Loader2, User, Mail, Sparkles, Linkedin } from 'lucide-react'
 
 type Status = 'idle' | 'loading' | 'success' | 'error'
 
@@ -22,43 +15,30 @@ export function WaitlistForm() {
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
-
     if (status === 'loading') return
 
     setStatus('loading')
     setErrorMsg('')
 
-    const fullNameValue = fullName.trim()
-    const emailValue = email.trim().toLowerCase()
-    const skillsValue = skills.trim()
-    const linkedinValue = linkedin.trim()
+    const payload = {
+      full_name: fullName.trim(),
+      email: email.trim().toLowerCase(),
+      skills: skills.trim(),
+      linkedin: linkedin.trim(),
+    }
 
-    if (
-      fullNameValue.length < 2 ||
-      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailValue) ||
-      skillsValue.length === 0
-    ) {
+    if (payload.full_name.length < 2 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(payload.email) || !payload.skills) {
       setStatus('error')
-      setErrorMsg(
-        'يرجى التأكد من إدخال الاسم والبريد الإلكتروني والمهارات بشكل صحيح.'
-      )
+      setErrorMsg('يرجى إدخال الاسم والبريد الإلكتروني والمهارات بشكل صحيح.')
       return
     }
 
     try {
       const response = await fetch('/api/talent', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          full_name: fullNameValue,
-          email: emailValue,
-          skills: skillsValue,
-          linkedin: linkedinValue || null,
-        }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
       })
-
       const data = await response.json().catch(() => null)
 
       if (response.ok) {
@@ -70,218 +50,61 @@ export function WaitlistForm() {
         return
       }
 
-      if (response.status === 409) {
-        setStatus('error')
-        setErrorMsg('هذا البريد الإلكتروني مسجّل بالفعل.')
-        return
-      }
-
-      if (response.status === 400) {
-        setStatus('error')
-        setErrorMsg(
-          data?.error ||
-            'يرجى التأكد من إدخال جميع البيانات المطلوبة بشكل صحيح.'
-        )
-        return
-      }
-
-      console.error('Talent signup API error:', data)
-
       setStatus('error')
-      setErrorMsg('حدث خطأ أثناء التسجيل. يرجى المحاولة مرة أخرى.')
+      setErrorMsg(response.status === 409 ? 'هذا البريد الإلكتروني مسجّل بالفعل.' : data?.error || 'تعذر إكمال التسجيل. حاول مرة أخرى.')
     } catch (error) {
-      console.error('Talent signup request failed:', error)
-
+      console.error('Talent signup failed:', error)
       setStatus('error')
-      setErrorMsg(
-        'تعذر الاتصال بالخادم. يرجى المحاولة مرة أخرى.'
-      )
+      setErrorMsg('تعذر الاتصال بالخادم. تحقق من اتصالك وحاول مرة أخرى.')
     }
   }
 
   if (status === 'success') {
     return (
-      <div
-        role="status"
-        aria-live="polite"
-        className="flex flex-col items-center gap-4 rounded-2xl border border-accent-green/30 bg-accent-green/10 p-8 text-center"
-      >
-        <div className="flex h-14 w-14 items-center justify-center rounded-full bg-accent-green text-accent-green-foreground">
-          <CheckCircle2 className="h-8 w-8" aria-hidden="true" />
-        </div>
-
-        <p className="font-display text-xl font-bold text-foreground">
-          تم تسجيلك بنجاح 🎉
-        </p>
-
-        <p className="max-w-md leading-relaxed text-muted-foreground">
-          شكراً لانضمامك إلى RemoteStart-DZ.
-          سنخبرك عند توفر فرص العمل العالمية المناسبة لك.
-        </p>
+      <div role="status" aria-live="polite" className="rounded-2xl border border-[#d8b56b]/25 bg-[#d8b56b]/10 p-8 text-center">
+        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#d8b56b] text-[#071426]"><CheckCircle2 className="h-7 w-7" /></div>
+        <p className="mt-5 font-display text-xl font-bold text-white">تم تسجيلك بنجاح 🎉</p>
+        <p className="mx-auto mt-2 max-w-md text-sm leading-7 text-slate-300">ملفك أصبح ضمن قائمة المواهب. سنخبرك عند توفر الفرص المناسبة.</p>
       </div>
     )
   }
 
+  const fieldClass = 'h-13 w-full rounded-xl border border-white/10 bg-[#071426]/70 px-4 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-[#d8b56b]/60 focus:ring-2 focus:ring-[#d8b56b]/15'
+
   return (
-    <form
-      onSubmit={handleSubmit}
-      className="w-full space-y-4"
-      noValidate
-    >
-      {/* Full Name */}
-      <div className="relative">
-        <label
-          htmlFor="full-name"
-          className="mb-2 block text-sm font-medium text-foreground"
-        >
-          الاسم الكامل
-        </label>
-
-        <User
-          className="pointer-events-none absolute right-4 top-[42px] h-5 w-5 text-muted-foreground"
-          aria-hidden="true"
-        />
-
-        <input
-          id="full-name"
-          type="text"
-          autoComplete="name"
-          required
-          minLength={2}
-          value={fullName}
-          onChange={(e) => setFullName(e.target.value)}
-          placeholder="Your full name"
-          className="h-13 w-full rounded-xl border border-input bg-secondary pr-12 pl-4 text-base text-foreground placeholder:text-muted-foreground focus:border-accent-green focus:outline-none focus:ring-2 focus:ring-accent-green/40"
-        />
+    <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field label="الاسم الكامل" icon={<User className="h-4 w-4" />}>
+          <input id="full-name" name="full_name" type="text" autoComplete="name" required minLength={2} value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="محمد بن علي" className={fieldClass} />
+        </Field>
+        <Field label="البريد الإلكتروني" icon={<Mail className="h-4 w-4" />}>
+          <input id="email" name="email" type="email" inputMode="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" className={fieldClass} />
+        </Field>
       </div>
 
-      {/* Email */}
-      <div className="relative">
-        <label
-          htmlFor="email"
-          className="mb-2 block text-sm font-medium text-foreground"
-        >
-          البريد الإلكتروني
-        </label>
+      <Field label="أهم مهاراتك" icon={<Sparkles className="h-4 w-4" />} hint="افصل المهارات بفاصلة">
+        <input id="skills" name="skills" type="text" required value={skills} onChange={(e) => setSkills(e.target.value)} placeholder="Marketing, Customer Support, Shopify" className={fieldClass} />
+      </Field>
 
-        <Mail
-          className="pointer-events-none absolute right-4 top-[42px] h-5 w-5 text-muted-foreground"
-          aria-hidden="true"
-        />
+      <Field label="LinkedIn" icon={<Linkedin className="h-4 w-4" />} hint="اختياري">
+        <input id="linkedin" name="linkedin" type="url" inputMode="url" autoComplete="url" value={linkedin} onChange={(e) => setLinkedin(e.target.value)} placeholder="https://linkedin.com/in/your-profile" className={fieldClass} />
+      </Field>
 
-        <input
-          id="email"
-          type="email"
-          inputMode="email"
-          autoComplete="email"
-          required
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder="you@example.com"
-          className="h-13 w-full rounded-xl border border-input bg-secondary pr-12 pl-4 text-base text-foreground placeholder:text-muted-foreground focus:border-accent-green focus:outline-none focus:ring-2 focus:ring-accent-green/40"
-        />
-      </div>
+      {status === 'error' && <p role="alert" className="rounded-xl border border-red-400/20 bg-red-400/10 p-3 text-sm text-red-200">{errorMsg}</p>}
 
-      {/* Skills */}
-      <div className="relative">
-        <label
-          htmlFor="skills"
-          className="mb-2 block text-sm font-medium text-foreground"
-        >
-          المهارات
-        </label>
-
-        <Code2
-          className="pointer-events-none absolute right-4 top-[42px] h-5 w-5 text-muted-foreground"
-          aria-hidden="true"
-        />
-
-        <input
-          id="skills"
-          type="text"
-          required
-          value={skills}
-          onChange={(e) => setSkills(e.target.value)}
-          placeholder="مثال: Customer Support, Shopify, Marketing"
-          className="h-13 w-full rounded-xl border border-input bg-secondary pr-12 pl-4 text-base text-foreground placeholder:text-muted-foreground focus:border-accent-green focus:outline-none focus:ring-2 focus:ring-accent-green/40"
-        />
-
-        <p className="mt-1.5 text-xs text-muted-foreground">
-          افصل بين المهارات بفاصلة
-        </p>
-      </div>
-
-      {/* LinkedIn - Optional */}
-      <div className="relative">
-        <label
-          htmlFor="linkedin"
-          className="mb-2 block text-sm font-medium text-foreground"
-        >
-          LinkedIn
-          <span className="mr-1 text-xs text-muted-foreground">
-            (اختياري)
-          </span>
-        </label>
-
-        <Code2
-          className="pointer-events-none absolute right-4 top-[42px] h-5 w-5 text-muted-foreground"
-          aria-hidden="true"
-        />
-
-        <input
-          id="linkedin"
-          type="url"
-          inputMode="url"
-          autoComplete="url"
-          value={linkedin}
-          onChange={(e) => setLinkedin(e.target.value)}
-          placeholder="https://linkedin.com/in/your-profile"
-          className="h-13 w-full rounded-xl border border-input bg-secondary pr-12 pl-4 text-base text-foreground placeholder:text-muted-foreground focus:border-accent-green focus:outline-none focus:ring-2 focus:ring-accent-green/40"
-        />
-
-        <p className="mt-1.5 text-xs text-muted-foreground">
-          يمكنك ترك هذه الخانة فارغة إذا لم يكن لديك حساب LinkedIn.
-        </p>
-      </div>
-
-      {/* Error */}
-      {status === 'error' && (
-        <p
-          role="alert"
-          className="rounded-lg border border-destructive/20 bg-destructive/10 p-3 text-sm text-destructive"
-        >
-          {errorMsg}
-        </p>
-      )}
-
-      {/* Submit */}
-      <button
-        type="submit"
-        disabled={status === 'loading'}
-        className="group inline-flex h-14 w-full items-center justify-center gap-2 rounded-xl bg-accent-green px-7 text-base font-bold text-accent-green-foreground transition-colors hover:bg-accent-green/90 focus:outline-none focus:ring-2 focus:ring-accent-green/50 disabled:cursor-not-allowed disabled:opacity-70"
-      >
-        {status === 'loading' ? (
-          <>
-            <Loader2
-              className="h-5 w-5 animate-spin"
-              aria-hidden="true"
-            />
-            جارٍ التسجيل...
-          </>
-        ) : (
-          <>
-            انضم إلى RemoteStart-DZ
-            <ArrowLeft
-              className="h-5 w-5 transition-transform group-hover:-translate-x-1"
-              aria-hidden="true"
-            />
-          </>
-        )}
+      <button type="submit" disabled={status === 'loading'} className="group flex h-14 w-full items-center justify-center gap-2 rounded-xl bg-[#d8b56b] px-6 text-sm font-extrabold text-[#071426] transition hover:-translate-y-0.5 hover:bg-[#e4c47f] focus:outline-none focus:ring-2 focus:ring-[#d8b56b]/50 disabled:cursor-not-allowed disabled:opacity-70">
+        {status === 'loading' ? <><Loader2 className="h-5 w-5 animate-spin" /> جارٍ حفظ ملفك...</> : <>انضم إلى قائمة المواهب <ArrowLeft className="h-5 w-5 transition group-hover:-translate-x-1" /></>}
       </button>
-
-      <p className="text-center text-xs leading-relaxed text-muted-foreground">
-        نحترم خصوصيتك. لن نشارك بياناتك مع جهات غير مصرح بها.
-      </p>
+      <p className="text-center text-[11px] leading-5 text-slate-500">بياناتك تُستخدم فقط للتواصل بشأن فرص RemoteStart-DZ. لن نبيع بياناتك.</p>
     </form>
+  )
+}
+
+function Field({ label, icon, hint, children }: { label: string; icon: React.ReactNode; hint?: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <div className="mb-2 flex items-center gap-2 text-xs font-bold text-slate-300"><span className="text-[#d8b56b]">{icon}</span><label htmlFor={label}>{label}</label>{hint && <span className="font-normal text-slate-600">({hint})</span>}</div>
+      {children}
+    </div>
   )
 }
