@@ -5,6 +5,12 @@ import { ArrowLeft, CheckCircle2, Loader2, User, Mail, Sparkles, Link2 } from 'l
 
 type Status = 'idle' | 'loading' | 'success' | 'error'
 
+type ApiError = {
+  error?: string
+  code?: string | null
+  message?: string | null
+}
+
 export function WaitlistForm() {
   const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
@@ -24,7 +30,7 @@ export function WaitlistForm() {
       full_name: fullName.trim(),
       email: email.trim().toLowerCase(),
       skills: skills.trim(),
-      linkedin: linkedin.trim(),
+      linkedin_url: linkedin.trim(),
     }
 
     if (payload.full_name.length < 2 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(payload.email) || !payload.skills) {
@@ -36,10 +42,11 @@ export function WaitlistForm() {
     try {
       const response = await fetch('/api/talent', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
         body: JSON.stringify(payload),
       })
-      const data = await response.json().catch(() => null)
+
+      const data = (await response.json().catch(() => null)) as ApiError | null
 
       if (response.ok) {
         setStatus('success')
@@ -50,10 +57,23 @@ export function WaitlistForm() {
         return
       }
 
+      console.error('Talent signup API error:', {
+        status: response.status,
+        code: data?.code,
+        message: data?.message,
+        error: data?.error,
+      })
+
       setStatus('error')
-      setErrorMsg(response.status === 409 ? 'هذا البريد الإلكتروني مسجّل بالفعل.' : data?.error || 'تعذر إكمال التسجيل. حاول مرة أخرى.')
+      if (response.status === 409) {
+        setErrorMsg('هذا البريد الإلكتروني مسجّل بالفعل.')
+      } else if (data?.code || data?.message) {
+        setErrorMsg(`خطأ قاعدة البيانات (${data.code ?? response.status}): ${data.message ?? data.error ?? 'Unknown error'}`)
+      } else {
+        setErrorMsg(data?.error || 'تعذر إكمال التسجيل. حاول مرة أخرى.')
+      }
     } catch (error) {
-      console.error('Talent signup failed:', error)
+      console.error('Talent signup network error:', error)
       setStatus('error')
       setErrorMsg('تعذر الاتصال بالخادم. تحقق من اتصالك وحاول مرة أخرى.')
     }
@@ -87,7 +107,7 @@ export function WaitlistForm() {
       </Field>
 
       <Field label="LinkedIn" htmlFor="linkedin" icon={<Link2 className="h-4 w-4" />} hint="اختياري">
-        <input id="linkedin" name="linkedin" type="url" inputMode="url" autoComplete="url" value={linkedin} onChange={(e) => setLinkedin(e.target.value)} placeholder="https://linkedin.com/in/your-profile" className={fieldClass} />
+        <input id="linkedin" name="linkedin_url" type="url" inputMode="url" autoComplete="url" value={linkedin} onChange={(e) => setLinkedin(e.target.value)} placeholder="https://linkedin.com/in/your-profile" className={fieldClass} />
       </Field>
 
       {status === 'error' && <p role="alert" className="rounded-xl border border-red-400/20 bg-red-400/10 p-3 text-sm text-red-200">{errorMsg}</p>}
