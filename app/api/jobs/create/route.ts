@@ -3,6 +3,8 @@ import { PRICING } from '@/lib/monetization'
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
+const REDOTPAY_PERSONAL_PAYMENT_URL = process.env.REDOTPAY_PERSONAL_PAYMENT_URL
+const REDOTPAY_WALLET_ADDRESS = process.env.REDOTPAY_WALLET_ADDRESS
 
 export async function POST(request: Request) {
   try {
@@ -38,13 +40,20 @@ export async function POST(request: Request) {
     if (!orderResponse.ok) return NextResponse.json({ error: 'Job created but payment order could not be created.' }, { status: 502 })
     const order = (await orderResponse.json())[0]
 
-    const baseUrl = plan === 'featured' ? process.env.REDOTPAY_JOB_FEATURED_URL : process.env.REDOTPAY_JOB_STANDARD_URL
-    if (!baseUrl) return NextResponse.json({ error: 'RedotPay checkout is not configured.', jobId: job.id, reference }, { status: 503 })
-    const checkoutUrl = new URL(baseUrl)
-    checkoutUrl.searchParams.set('reference', reference)
-    checkoutUrl.searchParams.set('email', contactEmail)
+    if (!REDOTPAY_PERSONAL_PAYMENT_URL && !REDOTPAY_WALLET_ADDRESS) {
+      return NextResponse.json({ error: 'Personal RedotPay payment link or wallet address is not configured.', jobId: job.id, reference }, { status: 503 })
+    }
 
-    return NextResponse.json({ success: true, jobId: job.id, orderId: order.id, reference, checkoutUrl: checkoutUrl.toString() }, { status: 201 })
+    let paymentUrl: string | null = null
+    if (REDOTPAY_PERSONAL_PAYMENT_URL) {
+      const url = new URL(REDOTPAY_PERSONAL_PAYMENT_URL)
+      url.searchParams.set('reference', reference)
+      url.searchParams.set('email', contactEmail)
+      url.searchParams.set('amount', String(price))
+      paymentUrl = url.toString()
+    }
+
+    return NextResponse.json({ success: true, jobId: job.id, orderId: order.id, reference, amount: price, paymentUrl, walletAddress: REDOTPAY_WALLET_ADDRESS || null, requiresProof: true }, { status: 201 })
   } catch (error) {
     console.error('Job creation error:', error)
     return NextResponse.json({ error: 'Unexpected server error.' }, { status: 500 })
