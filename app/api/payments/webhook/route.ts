@@ -1,109 +1,101 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { fulfillPayment } from "@/lib/payment-fulfillment";
 
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+export const runtime = "nodejs";
+
+function getWebhookSecret() {
+  return process.env.PAYMENT_WEBHOOK_SECRET || "";
+}
+
+function timingSafeEqual(a: string, b: string) {
+  if (a.length !== b.length) return false;
+  let result = 0;
+  for (let i = 0; i < a.length; i++) {
+    result |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return result === 0;
+}
 
 export async function POST(request: NextRequest) {
   try {
+    const configuredSecret = getWebhookSecret();
+
+    if (!configuredSecret) {
+      console.error("PAYMENT_WEBHOOK_SECRET is not configured");
+      return NextResponse.json(
+        { success: false, error: "Webhook is not configured" },
+        { status: 503 }
+      );
+    }
+
+    const suppliedSecret = request.headers.get("x-webhook-secret") || "";
+
+    if (!timingSafeEqual(suppliedSecret, configuredSecret)) {
+      return NextResponse.json(
+        { success: false, error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
     const body = await request.json();
 
-    /*
-     * هذه القيم يجب أن تأتي من نظام الدفع الخاص بك.
-     */
-    const {
-      provider,
-      payment_id,
-      order_id,
-      status,
-      amount,
-      currency,
-      talent_id,
-    } = body;
+    const reference =
+      typeof body?.reference === "string"
+        ? body.reference.trim()
+        : typeof body?.order_reference === "string"
+          ? body.order_reference.trim()
+          : typeof body?.order_id === "string"
+            ? body.order_id.trim()
+            : "";
 
-    // Basic validation
-    if (!provider) {
+    const status =
+      typeof body?.status === "string"
+        ? body.status.toLowerCase()
+        : "";
+
+    if (!reference) {
       return NextResponse.json(
-        { success: false, error: "Missing provider" },
+        { success: false, error: "Missing payment reference" },
         { status: 400 }
       );
     }
 
-    if (!payment_id) {
-      return NextResponse.json(
-        { success: false, error: "Missing payment_id" },
-        { status: 400 }
-      );
-    }
-
-    if (!talent_id) {
-      return NextResponse.json(
-        { success: false, error: "Missing talent_id" },
-        { status: 400 }
-      );
-    }
-
-    if (!order_id) {
-      return NextResponse.json(
-        { success: false, error: "Missing order_id" },
-        { status: 400 }
-      );
-    }
-
-    /*
-     * لا نقوم بتفعيل Pro إلا إذا كانت عملية الدفع ناجحة.
-     */
-    if (status !== "success" && status !== "completed") {
+    if (
+      status !== "success" &&
+      status !== "completed" &&
+      status !== "paid" &&
+      status !== "approved"
+    ) {
       return NextResponse.json({
         success: true,
         processed: false,
-        message: "Payment is not successful",
+        message: "Payment status is not successful",
+        reference,
       });
     }
 
-    /*
-     * استدعاء دالة Supabase الآمنة التي بنيناها.
-     */
-    const { data, error } = await supabaseAdmin.rpc(
-      "activate_talent_pro",
-      {
-        p_talent_id: talent_id,
-        p_payment_id: payment_id,
-        p_order_id: order_id,
-        p_provider: provider,
-        p_amount: amount || null,
-        p_currency: currency || "DZD",
-      }
-    );
-
-    if (error) {
-      console.error("activate_talent_pro error:", error);
-
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Subscription activation failed",
-        },
-        { status: 500 }
-      );
-    }
+    // Single fulfillment path for every provider.
+    // fulfillPayment() handles Talent Pro activation and idempotency.
+    const result = await fulfillPayment(reference, "payment-webhook");
 
     return NextResponse.json({
       success: true,
       processed: true,
-      result: data,
+      reference,
+      alreadyPaid: Boolean(result.alreadyPaid),
+      productCode: result.order?.product_code || null,
+      talentProActivation: result.talentProActivation || null,
     });
   } catch (error) {
-    console.error("Webhook error:", error);
+    console.error("Payment webhook error:", error);
 
     return NextResponse.json(
       {
         success: false,
-        error: "Invalid webhook request",
+        error:
+          error instanceof Error ? error.message : "Webhook processing failed",
       },
-      { status: 400 }
+      { status: 500 }
     );
   }
 }
