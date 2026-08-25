@@ -2,7 +2,6 @@ import { ArrowLeft, BriefcaseBusiness } from 'lucide-react'
 import { Hero } from '@/components/hero'
 import { Features } from '@/components/features'
 import { EmployerJobForm } from '@/components/employer-job-form'
-import { TalentSignup } from '@/components/talent-signup'
 
 const stats = [
   { value: '100%', label: 'Remote-first' },
@@ -35,7 +34,7 @@ export default function Page() {
         </nav>
 
         <a
-          href="#join"
+          href="#signup"
           className="rounded-full border border-white/10 bg-white/[.04] px-5 py-2.5 text-sm font-semibold text-white"
         >
           Join now
@@ -57,26 +56,6 @@ export default function Page() {
         </section>
 
         <Features />
-
-        {/* Unified Talent Authentication — the only talent form on the page. */}
-        <section id="talents" className="mx-auto max-w-2xl px-6 py-20 lg:px-8">
-          <div
-            id="join"
-            className="rounded-3xl border border-[#d8b56b]/20 bg-white/[.035] p-7 shadow-2xl shadow-black/20 sm:p-9"
-          >
-            <div className="mb-7 text-center">
-              <p className="text-xs font-bold uppercase tracking-[.25em] text-[#d8b56b]">For talent</p>
-              <h2 className="mt-3 font-display text-3xl font-extrabold text-white sm:text-4xl">
-                Your global career starts here.
-              </h2>
-              <p className="mt-3 text-sm leading-6 text-slate-400">
-                Create your account or sign in to manage your RemoteStart-DZ talent profile.
-              </p>
-            </div>
-
-            <TalentSignup />
-          </div>
-        </section>
 
         <EmployerJobForm />
 
