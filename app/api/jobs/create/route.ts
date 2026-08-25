@@ -8,7 +8,6 @@ const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
 const BARIDIMOB_CCP = process.env.BARIDIMOB_CCP
 const BARIDIMOB_RIP = process.env.BARIDIMOB_RIP
 const BARIDIMOB_ACCOUNT_NAME = process.env.BARIDIMOB_ACCOUNT_NAME
-const PIPEDREAM_WEBHOOK_URL = process.env.PIPEDREAM_EMPLOYER_WEBHOOK_URL || ''
 
 function supabaseHeaders() {
   if (!SUPABASE_SERVICE_ROLE_KEY) throw new Error('Supabase service role is not configured')
@@ -17,54 +16,6 @@ function supabaseHeaders() {
     Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
     'Content-Type': 'application/json',
     Accept: 'application/json',
-  }
-}
-
-async function sendEmployerSubmissionToPipedream(data: {
-  companyName: string
-  contactEmail: string
-  jobTitle: string
-  salary: string
-  description: string
-  plan: string
-  paymentMethod: string
-  jobId: string
-  orderId: string
-  reference: string
-  amount: number
-}) {
-  if (!PIPEDREAM_WEBHOOK_URL) return
-
-  try {
-    const response = await fetch(PIPEDREAM_WEBHOOK_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        source: 'RemoteStart-DZ',
-        event: 'employer_job_submission',
-        submitted_at: new Date().toISOString(),
-        company: { name: data.companyName, email: data.contactEmail },
-        job: {
-          title: data.jobTitle,
-          salary: data.salary || null,
-          description: data.description,
-          plan: data.plan,
-        },
-        payment: {
-          method: data.paymentMethod,
-          amount_usd: data.amount,
-          reference: data.reference,
-          job_id: data.jobId,
-          order_id: data.orderId,
-        },
-      }),
-    })
-
-    if (!response.ok) {
-      console.error('Pipedream webhook failed:', response.status)
-    }
-  } catch (error) {
-    console.error('Pipedream webhook error:', error)
   }
 }
 
@@ -92,6 +43,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Please provide valid job and contact details.' }, { status: 400 })
     }
 
+    // Product and price are selected exclusively on the server.
     const product = plan === 'featured' ? 'job_featured' : 'job_standard'
     const price = PRICING[product].amount
     const headers = supabaseHeaders()
@@ -136,20 +88,6 @@ export async function POST(request: Request) {
     }
 
     const order = (await orderResponse.json())[0]
-
-    await sendEmployerSubmissionToPipedream({
-      companyName,
-      contactEmail,
-      jobTitle,
-      salary,
-      description,
-      plan,
-      paymentMethod,
-      jobId: job.id,
-      orderId: order.id,
-      reference,
-      amount: price,
-    })
 
     if (paymentMethod === 'baridimob') {
       return NextResponse.json({
