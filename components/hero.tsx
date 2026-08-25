@@ -1,6 +1,6 @@
 import Image from 'next/image'
 import { ArrowLeft, CheckCircle2, Globe2, Sparkles } from 'lucide-react'
-import { WaitlistForm } from '@/components/waitlist-form'
+import { TalentSignup } from '@/components/talent-signup'
 
 export function Hero() {
   return (
@@ -25,13 +25,18 @@ export function Hero() {
             <span className="inline-flex items-center gap-2"><Globe2 className="h-4 w-4 text-[#d8b56b]" /> فرص عالمية</span>
           </div>
 
-          <div id="signup" className="mt-10 w-full max-w-xl scroll-mt-8">
-            <div className="rounded-2xl border border-white/10 bg-white/[.045] p-5 shadow-2xl shadow-black/20 backdrop-blur sm:p-6">
-              <div className="mb-5">
-                <p className="font-display text-lg font-bold text-white">أنشئ ملفك المهني</p>
-                <p className="mt-1 text-sm text-slate-400">سجّل الآن وسنخبرك عند إطلاق أول فرص المطابقة.</p>
+          <div id="signup" className="mt-10 w-full max-w-xl scroll-mt-8" dir="ltr">
+            <div className="rounded-2xl border border-[#d8b56b]/20 bg-white/[.045] p-5 shadow-2xl shadow-black/20 backdrop-blur sm:p-6">
+              <div className="mb-6 text-center">
+                <p className="text-xs font-bold uppercase tracking-[.25em] text-[#d8b56b]">For talent</p>
+                <h2 className="mt-3 font-display text-2xl font-extrabold text-white sm:text-3xl">
+                  Your global career starts here.
+                </h2>
+                <p className="mt-2 text-sm leading-6 text-slate-400">
+                  Create your account or sign in to manage your RemoteStart-DZ talent profile.
+                </p>
               </div>
-              <WaitlistForm />
+              <TalentSignup />
             </div>
           </div>
 
