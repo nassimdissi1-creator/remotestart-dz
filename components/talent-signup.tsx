@@ -1,6 +1,7 @@
 'use client'
 
-import { FormEvent, useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import type { FormEvent } from 'react'
 
 type PendingProfile = {
   full_name: string
@@ -9,7 +10,7 @@ type PendingProfile = {
 }
 
 type AuthSession = {
-  access_token: string
+  access_token?: string
   refresh_token?: string
   user?: {
     id?: string
@@ -52,7 +53,7 @@ async function authRequest(path: string, body: Record<string, unknown>) {
     )
   }
 
-  return data as AuthSession & { user?: AuthSession['user'] }
+  return data as AuthSession
 }
 
 async function createTalentProfile(
@@ -203,7 +204,9 @@ export function TalentSignup() {
       })
 
       if (!data.access_token) {
-        throw new Error('Authentication succeeded but no access token was returned.')
+        throw new Error(
+          'Authentication succeeded but no access token was returned.',
+        )
       }
 
       const stored = sessionStorage.getItem(PENDING_PROFILE_KEY)
