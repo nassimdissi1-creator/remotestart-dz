@@ -43,9 +43,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'talent_id is required.' }, { status: 400 })
     }
 
-    // Admin-only test flow. This deliberately creates a zero-value payment order
-    // instead of touching the real payment providers or accepting user-supplied
-    // customer identity through the public payment endpoint.
+    // Admin-only test flow. The database requires amount_usd > 0, so the test
+    // order uses a nominal positive value. It never contacts RedotPay or
+    // BaridiMob, and test metadata marks it as non-production money.
     const talentResponse = await fetch(
       `${SUPABASE_URL}/rest/v1/talents?id=eq.${encodeURIComponent(talentId)}&select=id,email`,
       { headers: headers(), cache: 'no-store' },
@@ -73,7 +73,7 @@ export async function POST(request: Request) {
         customer_id: talent.id,
         customer_email: String(talent.email).trim().toLowerCase(),
         product_code: 'talent_pro',
-        amount_usd: 0,
+        amount_usd: 0.01,
         currency: 'USD',
         payment_method: 'redotpay',
         status: 'pending_verification',
@@ -88,7 +88,8 @@ export async function POST(request: Request) {
     })
 
     if (!insertResponse.ok) {
-      console.error('Test payment order creation failed:', await insertResponse.text())
+      const details = await insertResponse.text()
+      console.error('Test payment order creation failed:', details)
       return NextResponse.json({ error: 'Could not create test payment order.' }, { status: 502 })
     }
 
