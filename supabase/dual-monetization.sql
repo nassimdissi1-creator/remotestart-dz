@@ -1,62 +1,75 @@
--- RemoteStart-DZ dual monetization schema
--- Run against the production Supabase project once.
+-- RemoteStart-DZ canonical billing catalog
+--
+-- Products:
+--   talent_free   : 0 DZD/month
+--   talent_pro    : 8000 DZD/month locally, 29 USD on RedotPay
+--   job_standard  : 399 USD one-time
+--   job_featured  : 499 USD one-time
+--
+-- AI CV Review is NOT a product. It is a 5-review/subscription-period
+-- entitlement included in Talent Pro Plus.
+-- Employer Success Fee is intentionally not part of the platform catalog.
 
 create extension if not exists pgcrypto;
 
 alter table public.talents
   add column if not exists is_pro boolean not null default false,
   add column if not exists featured_until timestamptz,
-  add column if not exists ai_cv_reviews_remaining integer not null default 0;
+  add column if not exists ai_cv_reviews_remaining integer not null default 0,
+  add column if not exists ai_cv_reviews_period_start timestamptz,
+  add column if not exists ai_cv_reviews_period_end timestamptz;
 
-create table if not exists public.payment_orders (
-  id uuid primary key default gen_random_uuid(),
-  reference text not null unique,
-  customer_type text not null check (customer_type in ('talent','employer')),
-  customer_id uuid,
-  customer_email text not null,
-  product_code text not null check (product_code in ('talent_pro','ai_cv_review','job_standard','job_featured')),
-  amount_usd numeric(10,2) not null check (amount_usd > 0),
-  payment_method text not null check (payment_method in ('redotpay','baridimob')),
-  status text not null default 'pending' check (status in ('pending','paid','failed','expired','refunded')),
-  provider_payment_id text,
-  receipt_path text,
-  metadata jsonb not null default '{}'::jsonb,
-  paid_at timestamptz,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
+alter table public.payment_orders drop constraint if exists payment_orders_product_code_check;
+alter table public.payment_orders add constraint payment_orders_product_code_check
+  check (product_code = any (array['talent_pro'::text,'job_standard'::text,'job_featured'::text]));
 
-create table if not exists public.job_opportunities (
-  id uuid primary key default gen_random_uuid(),
-  company_name text not null,
-  job_title text not null,
-  salary text,
-  description text not null,
-  contact_email text not null,
-  plan text not null check (plan in ('standard','featured')),
-  price_usd numeric(10,2) not null check (price_usd in (199,299)),
-  payment_status text not null default 'pending' check (payment_status in ('pending','paid','failed','expired','refunded')),
-  published boolean not null default false,
-  featured boolean not null default false,
-  payment_order_id uuid references public.payment_orders(id) on delete set null,
-  published_at timestamptz,
-  expires_at timestamptz,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
+insert into public.billing_plans
+  (code,name,description,audience,price_amount,currency,billing_interval,is_active,ai_cv_reviews_per_month)
+values
+  ('talent_free','Talent Free','Free talent plan with limited job applications','talent',0,'DZD','monthly',true,0),
+  ('talent_pro','Talent Pro Plus','Premium talent plan with unlimited applications, profile visibility, AI CV Review and priority support','talent',8000,'DZD','monthly',true,5),
+  ('job_standard','Standard Job Post','One-time payment for a standard job posting','employer',399,'USD','one_time',true,0),
+  ('job_featured','Featured Job Post','One-time payment for a featured job posting','employer',499,'USD','one_time',true,0)
+on conflict (code) do update set
+  name=excluded.name,
+  description=excluded.description,
+  audience=excluded.audience,
+  price_amount=excluded.price_amount,
+  currency=excluded.currency,
+  billing_interval=excluded.billing_interval,
+  is_active=excluded.is_active,
+  ai_cv_reviews_per_month=excluded.ai_cv_reviews_per_month,
+  updated_at=now();
 
-alter table public.payment_orders enable row level security;
-alter table public.job_opportunities enable row level security;
+insert into public.billing_entitlements (code,name,description,unit)
+values ('ai_cv_review','AI CV Review','AI-powered CV review included with Talent Pro Plus','review')
+on conflict (code) do update set
+  name=excluded.name,
+  description=excluded.description,
+  unit=excluded.unit;
 
-revoke all on public.payment_orders from anon, authenticated;
-revoke all on public.job_opportunities from anon, authenticated;
-grant select on public.job_opportunities to anon, authenticated;
+insert into public.billing_plan_entitlements
+  (plan_id,entitlement_id,enabled,limit_value,reset_period)
+select bp.id,be.id,true,5,'subscription'
+from public.billing_plans bp
+cross join public.billing_entitlements be
+where bp.code='talent_pro' and be.code='ai_cv_review'
+on conflict (plan_id,entitlement_id) do update set
+  enabled=true,
+  limit_value=5,
+  reset_period='subscription';
 
-drop policy if exists "Public can view live jobs" on public.job_opportunities;
-create policy "Public can view live jobs" on public.job_opportunities
-  for select to anon, authenticated
-  using (published = true and payment_status = 'paid');
+insert into public.billing_plan_entitlements
+  (plan_id,entitlement_id,enabled,limit_value,reset_period)
+select bp.id,be.id,false,0,'subscription'
+from public.billing_plans bp
+cross join public.billing_entitlements be
+where bp.code='talent_free' and be.code='ai_cv_review'
+on conflict (plan_id,entitlement_id) do update set
+  enabled=false,
+  limit_value=0,
+  reset_period='subscription';
 
-insert into storage.buckets (id, name, public)
-values ('payment-receipts', 'payment-receipts', false)
-on conflict (id) do nothing;
+alter table public.job_opportunities drop constraint if exists job_opportunities_price_usd_check;
+alter table public.job_opportunities add constraint job_opportunities_price_usd_check
+  check (price_usd = any (array[399::numeric,499::numeric]));
