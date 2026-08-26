@@ -64,6 +64,7 @@ export default function AuthCallbackPage() {
       const metadata = user.user_metadata || {}
       const fullName = String(metadata.full_name || '').trim()
       const skills = String(metadata.skills || '').trim()
+      const toolsAndTechnologies = String(metadata.tools_and_technologies || '').trim()
       const linkedinUrl = String(metadata.linkedin_url || '').trim()
 
       if (fullName.length >= 2 && skills) {
@@ -77,6 +78,7 @@ export default function AuthCallbackPage() {
             body: JSON.stringify({
               full_name: fullName,
               skills,
+              tools_and_technologies: toolsAndTechnologies,
               linkedin_url: linkedinUrl,
             }),
           })
