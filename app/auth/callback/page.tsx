@@ -29,9 +29,10 @@ export default function AuthCallbackPage() {
       // token_hash verification is important when the confirmation email is
       // opened on a different device from the one used for registration.
       if (tokenHash) {
+        const otpType = type === 'recovery' ? 'recovery' : type === 'email_change' ? 'email_change' : 'email'
         const { error: verifyError } = await supabase.auth.verifyOtp({
           token_hash: tokenHash,
-          type: type === 'recovery' ? 'recovery' : 'signup',
+          type: otpType,
         })
         if (verifyError) {
           setError(verifyError.message)
