@@ -10,8 +10,12 @@ type Mode = 'signin' | 'signup'
 type ProfileForm = {
   full_name: string
   skills: string
+  tools_and_technologies: string
   linkedin_url: string
 }
+
+const inputClassName =
+  'w-full rounded-xl border border-white/10 bg-white/[.04] px-4 py-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-[#d8b56b]/60'
 
 export function TalentSignup() {
   const router = useRouter()
@@ -22,6 +26,7 @@ export function TalentSignup() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [skills, setSkills] = useState('')
+  const [toolsAndTechnologies, setToolsAndTechnologies] = useState('')
   const [linkedinUrl, setLinkedinUrl] = useState('')
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
@@ -87,6 +92,7 @@ export function TalentSignup() {
         const metadataProfile: ProfileForm = {
           full_name: String(metadata.full_name || '').trim(),
           skills: String(metadata.skills || '').trim(),
+          tools_and_technologies: String(metadata.tools_and_technologies || '').trim(),
           linkedin_url: String(metadata.linkedin_url || '').trim(),
         }
 
@@ -100,7 +106,7 @@ export function TalentSignup() {
       }
 
       if (fullName.trim().length < 2) throw new Error('Please enter your full name.')
-      if (!skills.trim()) throw new Error('Please enter at least one skill.')
+      if (!skills.trim()) throw new Error('Please enter at least one professional skill.')
 
       if (linkedinUrl.trim()) {
         try {
@@ -120,6 +126,7 @@ export function TalentSignup() {
       const profile: ProfileForm = {
         full_name: fullName.trim(),
         skills: skills.trim(),
+        tools_and_technologies: toolsAndTechnologies.trim(),
         linkedin_url: linkedinUrl.trim(),
       }
 
@@ -136,6 +143,7 @@ export function TalentSignup() {
           data: {
             full_name: profile.full_name,
             skills: profile.skills,
+            tools_and_technologies: profile.tools_and_technologies,
             linkedin_url: profile.linkedin_url,
             auth_return_path: returnPath,
           },
@@ -179,16 +187,44 @@ export function TalentSignup() {
 
       <form onSubmit={handleSubmit} className="space-y-4">
         {mode === 'signup' && (
-          <input required value={fullName} onChange={(event) => setFullName(event.target.value)} placeholder="Full name" autoComplete="name" className="w-full rounded-xl border border-white/10 bg-white/[.04] px-4 py-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-[#d8b56b]/60" />
+          <input required value={fullName} onChange={(event) => setFullName(event.target.value)} placeholder="Full name" autoComplete="name" className={inputClassName} />
         )}
 
-        <input required type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="Email address" autoComplete="email" className="w-full rounded-xl border border-white/10 bg-white/[.04] px-4 py-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-[#d8b56b]/60" />
-        <input required type="password" minLength={8} value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Password (8+ characters)" autoComplete={mode === 'signup' ? 'new-password' : 'current-password'} className="w-full rounded-xl border border-white/10 bg-white/[.04] px-4 py-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-[#d8b56b]/60" />
+        <input required type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="Email address" autoComplete="email" className={inputClassName} />
+        <input required type="password" minLength={8} value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Password (8+ characters)" autoComplete={mode === 'signup' ? 'new-password' : 'current-password'} className={inputClassName} />
 
         {mode === 'signup' && (
           <>
-            <input required value={skills} onChange={(event) => setSkills(event.target.value)} placeholder="Skills — e.g. React, Node.js, Python" className="w-full rounded-xl border border-white/10 bg-white/[.04] px-4 py-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-[#d8b56b]/60" />
-            <input value={linkedinUrl} onChange={(event) => setLinkedinUrl(event.target.value)} placeholder="LinkedIn URL (optional)" inputMode="url" autoComplete="url" className="w-full rounded-xl border border-white/10 bg-white/[.04] px-4 py-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-[#d8b56b]/60" />
+            <div className="space-y-2">
+              <label htmlFor="professional-skills" className="block text-sm font-semibold text-slate-200">
+                Professional Skills <span className="text-[#d8b56b]">*</span>
+              </label>
+              <input
+                id="professional-skills"
+                required
+                value={skills}
+                onChange={(event) => setSkills(event.target.value)}
+                placeholder="e.g. Marketing, AI Automation, Copywriting"
+                className={inputClassName}
+              />
+              <p className="text-xs text-slate-500">Tell us what kind of remote work you can professionally deliver. Separate multiple skills with commas.</p>
+            </div>
+
+            <div className="space-y-2">
+              <label htmlFor="tools-and-technologies" className="block text-sm font-semibold text-slate-200">
+                Tools &amp; Technologies <span className="font-normal text-slate-500">(optional)</span>
+              </label>
+              <input
+                id="tools-and-technologies"
+                value={toolsAndTechnologies}
+                onChange={(event) => setToolsAndTechnologies(event.target.value)}
+                placeholder="e.g. Python, Zapier, Make, HubSpot, OpenAI"
+                className={inputClassName}
+              />
+              <p className="text-xs text-slate-500">Add the software, platforms, or technical tools you use. Separate multiple items with commas.</p>
+            </div>
+
+            <input value={linkedinUrl} onChange={(event) => setLinkedinUrl(event.target.value)} placeholder="LinkedIn URL (optional)" inputMode="url" autoComplete="url" className={inputClassName} />
           </>
         )}
 
