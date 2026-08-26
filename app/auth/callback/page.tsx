@@ -6,7 +6,9 @@ import { getSupabaseBrowserClient } from '@/lib/supabase-browser'
 const FALLBACK_RETURN_PATH = '/#talents'
 
 function safeReturnPath(value: unknown) {
-  if (typeof value !== 'string' || !value.startsWith('/')) return FALLBACK_RETURN_PATH
+  if (typeof value !== 'string' || !value.startsWith('/') || value.startsWith('//')) {
+    return FALLBACK_RETURN_PATH
+  }
   return value
 }
 
@@ -17,33 +19,51 @@ export default function AuthCallbackPage() {
   useEffect(() => {
     const supabase = getSupabaseBrowserClient()
 
-    const redirectWithSession = async () => {
+    const finishAuth = async () => {
+      const url = new URL(window.location.href)
+      const code = url.searchParams.get('code')
+      const tokenHash = url.searchParams.get('token_hash')
+      const type = url.searchParams.get('type')
+
+      // Support both Supabase PKCE links and token-hash confirmation links.
+      // token_hash verification is important when the confirmation email is
+      // opened on a different device from the one used for registration.
+      if (tokenHash) {
+        const { error: verifyError } = await supabase.auth.verifyOtp({
+          token_hash: tokenHash,
+          type: type === 'recovery' ? 'recovery' : 'signup',
+        })
+        if (verifyError) {
+          setError(verifyError.message)
+          return
+        }
+      } else if (code) {
+        const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
+        if (exchangeError) {
+          setError(exchangeError.message)
+          return
+        }
+      }
+
       const { data, error: sessionError } = await supabase.auth.getSession()
       if (sessionError) {
         setError(sessionError.message)
         return
       }
 
-      const returnPath = safeReturnPath(data.session?.user?.user_metadata?.auth_return_path)
-      if (data.session && !redirected.current) {
-        redirected.current = true
-        window.location.replace(returnPath)
+      if (!data.session) {
+        setError('Email confirmation completed, but no active session was created. Please return to RemoteStart-DZ and sign in.')
+        return
       }
+
+      if (redirected.current) return
+      redirected.current = true
+
+      const returnPath = safeReturnPath(data.session.user.user_metadata?.auth_return_path)
+      window.location.replace(returnPath)
     }
 
-    void redirectWithSession()
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session && !redirected.current) {
-        redirected.current = true
-        const returnPath = safeReturnPath(session.user.user_metadata?.auth_return_path)
-        window.location.replace(returnPath)
-      }
-    })
-
-    return () => subscription.unsubscribe()
+    void finishAuth()
   }, [])
 
   return (
