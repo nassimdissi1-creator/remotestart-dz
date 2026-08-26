@@ -14,7 +14,7 @@ function authorized(request: Request) {
   )
 }
 
-export async function POST(request: Request) {
+async function setupWebhook(request: Request) {
   if (!authorized(request)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
@@ -47,4 +47,12 @@ export async function POST(request: Request) {
   }
 
   return NextResponse.json({ success: true, webhookUrl })
+}
+
+export async function GET(request: Request) {
+  return setupWebhook(request)
+}
+
+export async function POST(request: Request) {
+  return setupWebhook(request)
 }
