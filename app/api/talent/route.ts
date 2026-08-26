@@ -10,12 +10,12 @@ function isValidEmail(email: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
 }
 
-function parseSkills(value: unknown): string[] {
+function parseCommaSeparatedList(value: unknown, maxItems = 30): string[] {
   return String(value ?? '')
     .split(',')
-    .map((skill) => skill.trim())
+    .map((item) => item.trim())
     .filter(Boolean)
-    .slice(0, 30)
+    .slice(0, maxItems)
 }
 
 function isValidLinkedIn(value: string) {
@@ -95,7 +95,10 @@ export async function POST(request: Request) {
     const body = await request.json()
     const fullName = String(body.full_name ?? '').trim()
     const email = String(user.email).trim().toLowerCase()
-    const skills = parseSkills(body.skills)
+    const skills = parseCommaSeparatedList(body.skills)
+    const toolsAndTechnologies = parseCommaSeparatedList(
+      body.tools_and_technologies ?? body.tools,
+    )
     const linkedin = String(
       body.linkedin_url ?? body.linkedin ?? '',
     ).trim()
@@ -116,7 +119,7 @@ export async function POST(request: Request) {
 
     if (!skills.length) {
       return NextResponse.json(
-        { error: 'At least one skill is required.' },
+        { error: 'At least one professional skill is required.' },
         { status: 400 },
       )
     }
@@ -136,6 +139,7 @@ export async function POST(request: Request) {
       full_name: fullName,
       email,
       skills,
+      tools_and_technologies: toolsAndTechnologies,
       linkedin_url: linkedin || null,
     }
 
