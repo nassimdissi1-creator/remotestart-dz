@@ -130,10 +130,11 @@ export function TalentSignup() {
         linkedin_url: linkedinUrl.trim(),
       }
 
-      // Use the exact origin where registration started. This keeps preview
-      // and production deployments consistent and avoids localhost links.
-      const returnPath = '/dashboard'
-      const registrationRedirect = `${window.location.origin}/auth/callback`
+      // Keep the exact deployment origin and the exact page/anchor where
+      // registration started. Supabase sends the confirmation link to this
+      // same origin, so cross-device confirmation returns to the same place.
+      const returnPath = `${window.location.pathname}${window.location.search}${window.location.hash}`
+      const registrationRedirect = `${window.location.origin}/auth/callback?returnTo=${encodeURIComponent(returnPath)}`
 
       const { data, error: signUpError } = await supabase.auth.signUp({
         email: normalizedEmail,
@@ -154,7 +155,7 @@ export function TalentSignup() {
       if (!data.user) throw new Error('Account creation did not return a user.')
 
       if (!data.session) {
-        setMessage('Account created. Please confirm your email. After confirmation, you will be signed in and taken to your dashboard.')
+        setMessage('Account created. Please confirm your email. After confirmation, you will be signed in and returned to the page where you registered.')
         setMode('signin')
         return
       }
