@@ -19,8 +19,13 @@ async function activateTalentProFromPayment(order: any) {
   if (!order.customer_id) throw new Error('Talent Pro payment has no customer_id')
 
   const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/activate_talent_pro_from_payment`, {
-    method: 'POST', headers: headers(),
-    body: JSON.stringify({ p_payment_order_id: order.id, p_provider_payment_id: order.provider_payment_id || order.transaction_hash || null, p_paid_at: new Date().toISOString() }),
+    method: 'POST',
+    headers: headers(),
+    body: JSON.stringify({
+      p_payment_order_id: order.id,
+      p_provider_payment_id: order.provider_payment_id || order.transaction_hash || null,
+      p_paid_at: new Date().toISOString(),
+    }),
     cache: 'no-store',
   })
   if (!response.ok) throw new Error(`Talent Pro activation failed: ${response.status} ${await response.text()}`)
@@ -47,27 +52,34 @@ export async function fulfillPayment(reference: string, verifiedBy = 'telegram-a
   }
 
   const metadata = order.metadata && typeof order.metadata === 'object' ? order.metadata : {}
-  const talentId = metadata.talent_id || metadata.talentId || order.customer_id
   const jobId = metadata.job_id || metadata.jobId
   let talentProActivation: any = null
 
-  if (order.product_code === 'talent_pro') talentProActivation = await activateTalentProFromPayment(order)
-
-  if (order.product_code === 'ai_cv_review' && talentId) {
-    const talentResponse = await fetch(`${SUPABASE_URL}/rest/v1/talents?id=eq.${encodeURIComponent(String(talentId))}&select=ai_cv_reviews_remaining`, { headers: headers(), cache: 'no-store' })
-    if (!talentResponse.ok) throw new Error(`Could not load talent AI review balance: ${talentResponse.status}`)
-    const talentRows = await talentResponse.json()
-    const current = Number(talentRows?.[0]?.ai_cv_reviews_remaining ?? 0)
-    await patch(`/rest/v1/talents?id=eq.${encodeURIComponent(String(talentId))}`, { ai_cv_reviews_remaining: current + 1 })
+  // Talent Pro activation is the only talent subscription fulfillment path.
+  // AI CV Review is included in Talent Pro and its monthly allowance is reset
+  // atomically by the database activation function.
+  if (order.product_code === 'talent_pro') {
+    talentProActivation = await activateTalentProFromPayment(order)
   }
 
   if ((order.product_code === 'job_standard' || order.product_code === 'job_featured') && jobId) {
-    await patch(`/rest/v1/job_opportunities?id=eq.${encodeURIComponent(String(jobId))}`, { payment_status: 'paid', published: true, featured: order.product_code === 'job_featured', published_at: new Date().toISOString() })
+    await patch(`/rest/v1/job_opportunities?id=eq.${encodeURIComponent(String(jobId))}`, {
+      payment_status: 'paid',
+      published: true,
+      featured: order.product_code === 'job_featured',
+      published_at: new Date().toISOString(),
+    })
   }
 
   if (order.product_code !== 'talent_pro') {
     const now = new Date().toISOString()
-    await patch(`/rest/v1/payment_orders?reference=eq.${encodeURIComponent(cleanReference)}`, { status: 'paid', paid_at: now, verified_at: now, verified_by: verifiedBy, ...(providerPaymentId ? { provider_payment_id: providerPaymentId } : {}) })
+    await patch(`/rest/v1/payment_orders?reference=eq.${encodeURIComponent(cleanReference)}`, {
+      status: 'paid',
+      paid_at: now,
+      verified_at: now,
+      verified_by: verifiedBy,
+      ...(providerPaymentId ? { provider_payment_id: providerPaymentId } : {}),
+    })
   }
 
   return { alreadyPaid: false, order, talentProActivation }
@@ -77,10 +89,24 @@ export async function rejectPayment(reference: string, verifiedBy = 'telegram-ad
   if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) throw new Error('Supabase configuration is incomplete')
   const cleanReference = String(reference || '').trim()
   if (!cleanReference) throw new Error('Payment reference is required')
-  await patch(`/rest/v1/payment_orders?reference=eq.${encodeURIComponent(cleanReference)}`, { status: 'rejected', verified_at: new Date().toISOString(), verified_by: verifiedBy })
+  await patch(`/rest/v1/payment_orders?reference=eq.${encodeURIComponent(cleanReference)}`, {
+    status: 'rejected',
+    verified_at: new Date().toISOString(),
+    verified_by: verifiedBy,
+  })
   return { reference: cleanReference }
 }
 
 export async function notifyPendingPayment(order: any) {
-  return sendPaymentApprovalNotification({ reference: order.reference, product: order.product_code, amount: Number(order.amount_usd), paymentMethod: order.payment_method, customerEmail: order.customer_email, transactionHash: order.transaction_hash, receiptPath: order.receipt_path })
+  const metadata = order.metadata && typeof order.metadata === 'object' ? order.metadata : {}
+  const isLocalTalentPayment = order.product_code === 'talent_pro' && order.payment_method === 'baridimob'
+  return sendPaymentApprovalNotification({
+    reference: order.reference,
+    product: order.product_code,
+    amount: isLocalTalentPayment ? Number(metadata.local_amount || 8000) : Number(order.amount_usd),
+    paymentMethod: order.payment_method,
+    customerEmail: order.customer_email,
+    transactionHash: order.transaction_hash,
+    receiptPath: order.receipt_path,
+  })
 }
