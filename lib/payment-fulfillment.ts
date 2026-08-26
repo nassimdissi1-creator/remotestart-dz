@@ -44,6 +44,18 @@ export async function fulfillPayment(reference: string, verifiedBy = 'telegram-a
   const order = orders?.[0]
   if (!order) throw new Error('Payment order not found')
 
+  // A paid Talent Pro order may still need subscription repair if a previous
+  // activation stopped after payment was marked paid. Re-run the idempotent
+  // database activation path instead of returning early.
+  if (order.status === 'paid' && order.product_code === 'talent_pro') {
+    const talentProActivation = await activateTalentProFromPayment(order)
+    await patch(`/rest/v1/payment_orders?reference=eq.${encodeURIComponent(cleanReference)}`, {
+      verified_by: verifiedBy,
+      ...(providerPaymentId ? { provider_payment_id: providerPaymentId } : {}),
+    })
+    return { alreadyPaid: Boolean(talentProActivation?.idempotent), order, talentProActivation }
+  }
+
   if (order.status === 'paid') return { alreadyPaid: true, order, talentProActivation: null }
 
   if (providerPaymentId) {
@@ -60,6 +72,10 @@ export async function fulfillPayment(reference: string, verifiedBy = 'telegram-a
   // atomically by the database activation function.
   if (order.product_code === 'talent_pro') {
     talentProActivation = await activateTalentProFromPayment(order)
+    await patch(`/rest/v1/payment_orders?reference=eq.${encodeURIComponent(cleanReference)}`, {
+      verified_by: verifiedBy,
+      ...(providerPaymentId ? { provider_payment_id: providerPaymentId } : {}),
+    })
   }
 
   if ((order.product_code === 'job_standard' || order.product_code === 'job_featured') && jobId) {
