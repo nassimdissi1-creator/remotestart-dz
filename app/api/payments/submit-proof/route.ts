@@ -41,22 +41,16 @@ export async function POST(request: Request) {
       }
     }
 
-    // Load the order first so proof submission cannot silently change an
-    // unrelated reference or use a payment method different from the order.
     const orderResponse = await fetch(
-      `${SUPABASE_URL}/rest/v1/payment_orders?reference=eq.${encodeURIComponent(reference)}&select=id,reference,customer_type,customer_email,product_code,amount_usd,payment_method,status,transaction_hash,receipt_path`,
+      `${SUPABASE_URL}/rest/v1/payment_orders?reference=eq.${encodeURIComponent(reference)}&select=id,reference,customer_type,customer_id,customer_email,product_code,amount_usd,payment_method,status,transaction_hash,receipt_path,metadata`,
       { headers: headers(), cache: 'no-store' },
     )
 
-    if (!orderResponse.ok) {
-      return NextResponse.json({ error: 'Could not load payment order.' }, { status: 502 })
-    }
+    if (!orderResponse.ok) return NextResponse.json({ error: 'Could not load payment order.' }, { status: 502 })
 
     const orders = await orderResponse.json()
     const order = orders?.[0]
-    if (!order) {
-      return NextResponse.json({ error: 'Payment order not found.' }, { status: 404 })
-    }
+    if (!order) return NextResponse.json({ error: 'Payment order not found.' }, { status: 404 })
 
     if (order.payment_method !== paymentMethod) {
       return NextResponse.json({ error: 'Payment method does not match the payment order.' }, { status: 400 })
@@ -105,13 +99,18 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Proof uploaded but order update failed.' }, { status: 502 })
     }
 
-    // Notify Telegram only after the payment order is successfully marked
-    // pending_verification. Use server-side order values, never client values,
-    // for the approval message.
+    const metadata = order.metadata && typeof order.metadata === 'object' ? order.metadata : {}
+    const isLocalTalentPayment = order.product_code === 'talent_pro' && order.payment_method === 'baridimob'
+    const notificationAmount = isLocalTalentPayment
+      ? Number(metadata.local_amount || 8000)
+      : Number(order.amount_usd)
+
+    // Telegram is sent only after the order is successfully marked
+    // pending_verification, and the amount comes from the server-side order.
     const telegramNotified = await sendPaymentApprovalNotification({
       reference: order.reference,
       product: order.product_code,
-      amount: Number(order.amount_usd),
+      amount: notificationAmount,
       paymentMethod: order.payment_method,
       customerEmail: order.customer_email,
       transactionHash: transactionHash || order.transaction_hash || null,
@@ -123,11 +122,7 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json(
-      {
-        success: true,
-        status: 'pending_verification',
-        telegramNotified,
-      },
+      { success: true, status: 'pending_verification', telegramNotified },
       { status: telegramNotified ? 201 : 202 },
     )
   } catch (error) {
