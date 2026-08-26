@@ -44,9 +44,6 @@ export async function fulfillPayment(reference: string, verifiedBy = 'telegram-a
   const order = orders?.[0]
   if (!order) throw new Error('Payment order not found')
 
-  // A paid Talent Pro order may still need subscription repair if a previous
-  // activation stopped after payment was marked paid. Re-run the idempotent
-  // database activation path instead of returning early.
   if (order.status === 'paid' && order.product_code === 'talent_pro') {
     const talentProActivation = await activateTalentProFromPayment(order)
     await patch(`/rest/v1/payment_orders?reference=eq.${encodeURIComponent(cleanReference)}`, {
@@ -67,9 +64,6 @@ export async function fulfillPayment(reference: string, verifiedBy = 'telegram-a
   const jobId = metadata.job_id || metadata.jobId
   let talentProActivation: any = null
 
-  // Talent Pro activation is the only talent subscription fulfillment path.
-  // AI CV Review is included in Talent Pro and its monthly allowance is reset
-  // atomically by the database activation function.
   if (order.product_code === 'talent_pro') {
     talentProActivation = await activateTalentProFromPayment(order)
     await patch(`/rest/v1/payment_orders?reference=eq.${encodeURIComponent(cleanReference)}`, {
@@ -113,11 +107,35 @@ export async function rejectPayment(reference: string, verifiedBy = 'telegram-ad
   return { reference: cleanReference }
 }
 
+async function getPaymentReferenceById(paymentOrderId: string) {
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) throw new Error('Supabase configuration is incomplete')
+  const response = await fetch(
+    `${SUPABASE_URL}/rest/v1/payment_orders?id=eq.${encodeURIComponent(paymentOrderId)}&select=reference`,
+    { headers: headers(), cache: 'no-store' },
+  )
+  if (!response.ok) throw new Error(`Could not load payment order by id: ${response.status}`)
+  const rows = await response.json()
+  const reference = rows?.[0]?.reference
+  if (!reference) throw new Error('Payment order not found')
+  return String(reference)
+}
+
+export async function fulfillPaymentById(paymentOrderId: string, verifiedBy = 'telegram-admin') {
+  const reference = await getPaymentReferenceById(paymentOrderId)
+  return fulfillPayment(reference, verifiedBy)
+}
+
+export async function rejectPaymentById(paymentOrderId: string, verifiedBy = 'telegram-admin') {
+  const reference = await getPaymentReferenceById(paymentOrderId)
+  return rejectPayment(reference, verifiedBy)
+}
+
 export async function notifyPendingPayment(order: any) {
   const metadata = order.metadata && typeof order.metadata === 'object' ? order.metadata : {}
   const isLocalTalentPayment = order.product_code === 'talent_pro' && order.payment_method === 'baridimob'
   return sendPaymentApprovalNotification({
     reference: order.reference,
+    paymentOrderId: order.id,
     product: order.product_code,
     amount: isLocalTalentPayment ? Number(metadata.local_amount || 8000) : Number(order.amount_usd),
     paymentMethod: order.payment_method,
