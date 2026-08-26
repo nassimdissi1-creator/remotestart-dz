@@ -53,6 +53,10 @@ export function TalentSignup() {
 
     const data = await response.json().catch(() => null)
 
+    // A confirmed user may sign in repeatedly. If the profile already exists,
+    // that is a successful idempotent completion rather than a sign-in error.
+    if (response.status === 409) return data
+
     if (!response.ok) {
       throw new Error(data?.error || 'Could not create your talent profile.')
     }
@@ -69,25 +73,30 @@ export function TalentSignup() {
     try {
       const normalizedEmail = email.trim().toLowerCase()
 
-      if (!normalizedEmail) {
-        throw new Error('Please enter your email address.')
-      }
-
-      if (password.length < 8) {
-        throw new Error('Use a password with at least 8 characters.')
-      }
+      if (!normalizedEmail) throw new Error('Please enter your email address.')
+      if (password.length < 8) throw new Error('Use a password with at least 8 characters.')
 
       if (mode === 'signin') {
-        const { data, error: signInError } =
-          await supabase.auth.signInWithPassword({
-            email: normalizedEmail,
-            password,
-          })
+        const { data, error: signInError } = await supabase.auth.signInWithPassword({
+          email: normalizedEmail,
+          password,
+        })
 
         if (signInError) throw signInError
+        if (!data.user || !data.session) throw new Error('Sign in succeeded but no active session was returned.')
 
-        if (!data.user || !data.session) {
-          throw new Error('Sign in succeeded but no active session was returned.')
+        // Email confirmation happens before the first session. Persist the
+        // signup form in auth metadata, then initialize the public talent row
+        // on the first successful sign-in.
+        const metadata = data.user.user_metadata || {}
+        const metadataProfile: ProfileForm = {
+          full_name: String(metadata.full_name || '').trim(),
+          skills: String(metadata.skills || '').trim(),
+          linkedin_url: String(metadata.linkedin_url || '').trim(),
+        }
+
+        if (metadataProfile.full_name.length >= 2 && metadataProfile.skills) {
+          await createTalentProfile(data.session.access_token, data.user.id, metadataProfile)
         }
 
         router.push('/dashboard')
@@ -95,13 +104,8 @@ export function TalentSignup() {
         return
       }
 
-      if (fullName.trim().length < 2) {
-        throw new Error('Please enter your full name.')
-      }
-
-      if (!skills.trim()) {
-        throw new Error('Please enter at least one skill.')
-      }
+      if (fullName.trim().length < 2) throw new Error('Please enter your full name.')
+      if (!skills.trim()) throw new Error('Please enter at least one skill.')
 
       if (linkedinUrl.trim()) {
         try {
@@ -124,39 +128,33 @@ export function TalentSignup() {
         linkedin_url: linkedinUrl.trim(),
       }
 
-      // Always return the user to the same site they used to register.
-      // This deliberately uses the current browser origin instead of a
-      // hard-coded localhost or production URL.
-      const registrationOrigin = window.location.origin
+      // Keep the exact page/section used for registration. The redirect URL
+      // must also be present in Supabase Auth's allowed Redirect URLs.
+      const registrationRedirect = `${window.location.origin}${window.location.pathname}#signup`
 
       const { data, error: signUpError } = await supabase.auth.signUp({
         email: normalizedEmail,
         password,
         options: {
-          emailRedirectTo: registrationOrigin,
+          emailRedirectTo: registrationRedirect,
+          data: {
+            full_name: profile.full_name,
+            skills: profile.skills,
+            linkedin_url: profile.linkedin_url,
+          },
         },
       })
 
       if (signUpError) throw signUpError
-
-      if (!data.user) {
-        throw new Error('Account creation did not return a user.')
-      }
+      if (!data.user) throw new Error('Account creation did not return a user.')
 
       if (!data.session) {
-        setMessage(
-          'Account created. Please confirm your email, then return here to sign in.',
-        )
+        setMessage('Account created. Please confirm your email. After confirmation you will return here to finish signing in.')
         setMode('signin')
         return
       }
 
-      await createTalentProfile(
-        data.session.access_token,
-        data.user.id,
-        profile,
-      )
-
+      await createTalentProfile(data.session.access_token, data.user.id, profile)
       setMessage('Account created successfully. Redirecting…')
       router.push('/dashboard')
       router.refresh()
@@ -174,108 +172,36 @@ export function TalentSignup() {
   return (
     <div className="space-y-5">
       <div className="flex gap-2 rounded-xl border border-white/10 bg-black/10 p-1">
-        <button
-          type="button"
-          onClick={() => switchMode('signin')}
-          className={`flex-1 rounded-lg px-4 py-2 text-sm font-semibold transition ${
-            mode === 'signin'
-              ? 'bg-[#d8b56b] text-[#071426]'
-              : 'text-slate-400 hover:text-white'
-          }`}
-        >
+        <button type="button" onClick={() => switchMode('signin')} className={`flex-1 rounded-lg px-4 py-2 text-sm font-semibold transition ${mode === 'signin' ? 'bg-[#d8b56b] text-[#071426]' : 'text-slate-400 hover:text-white'}`}>
           Sign In
         </button>
-        <button
-          type="button"
-          onClick={() => switchMode('signup')}
-          className={`flex-1 rounded-lg px-4 py-2 text-sm font-semibold transition ${
-            mode === 'signup'
-              ? 'bg-[#d8b56b] text-[#071426]'
-              : 'text-slate-400 hover:text-white'
-          }`}
-        >
+        <button type="button" onClick={() => switchMode('signup')} className={`flex-1 rounded-lg px-4 py-2 text-sm font-semibold transition ${mode === 'signup' ? 'bg-[#d8b56b] text-[#071426]' : 'text-slate-400 hover:text-white'}`}>
           Create Account
         </button>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
         {mode === 'signup' && (
-          <input
-            required
-            value={fullName}
-            onChange={(event) => setFullName(event.target.value)}
-            placeholder="Full name"
-            autoComplete="name"
-            className="w-full rounded-xl border border-white/10 bg-white/[.04] px-4 py-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-[#d8b56b]/60"
-          />
+          <input required value={fullName} onChange={(event) => setFullName(event.target.value)} placeholder="Full name" autoComplete="name" className="w-full rounded-xl border border-white/10 bg-white/[.04] px-4 py-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-[#d8b56b]/60" />
         )}
 
-        <input
-          required
-          type="email"
-          value={email}
-          onChange={(event) => setEmail(event.target.value)}
-          placeholder="Email address"
-          autoComplete="email"
-          className="w-full rounded-xl border border-white/10 bg-white/[.04] px-4 py-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-[#d8b56b]/60"
-        />
-
-        <input
-          required
-          type="password"
-          minLength={8}
-          value={password}
-          onChange={(event) => setPassword(event.target.value)}
-          placeholder="Password (8+ characters)"
-          autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
-          className="w-full rounded-xl border border-white/10 bg-white/[.04] px-4 py-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-[#d8b56b]/60"
-        />
+        <input required type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="Email address" autoComplete="email" className="w-full rounded-xl border border-white/10 bg-white/[.04] px-4 py-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-[#d8b56b]/60" />
+        <input required type="password" minLength={8} value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Password (8+ characters)" autoComplete={mode === 'signup' ? 'new-password' : 'current-password'} className="w-full rounded-xl border border-white/10 bg-white/[.04] px-4 py-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-[#d8b56b]/60" />
 
         {mode === 'signup' && (
           <>
-            <input
-              required
-              value={skills}
-              onChange={(event) => setSkills(event.target.value)}
-              placeholder="Skills — e.g. React, Node.js, Python"
-              className="w-full rounded-xl border border-white/10 bg-white/[.04] px-4 py-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-[#d8b56b]/60"
-            />
-
-            <input
-              value={linkedinUrl}
-              onChange={(event) => setLinkedinUrl(event.target.value)}
-              placeholder="LinkedIn URL (optional)"
-              inputMode="url"
-              autoComplete="url"
-              className="w-full rounded-xl border border-white/10 bg-white/[.04] px-4 py-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-[#d8b56b]/60"
-            />
+            <input required value={skills} onChange={(event) => setSkills(event.target.value)} placeholder="Skills — e.g. React, Node.js, Python" className="w-full rounded-xl border border-white/10 bg-white/[.04] px-4 py-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-[#d8b56b]/60" />
+            <input value={linkedinUrl} onChange={(event) => setLinkedinUrl(event.target.value)} placeholder="LinkedIn URL (optional)" inputMode="url" autoComplete="url" className="w-full rounded-xl border border-white/10 bg-white/[.04] px-4 py-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-[#d8b56b]/60" />
           </>
         )}
 
-        <button
-          disabled={loading}
-          type="submit"
-          className="w-full rounded-xl bg-[#d8b56b] px-5 py-3 font-bold text-[#071426] transition hover:bg-[#e5c783] disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {loading
-            ? 'Please wait…'
-            : mode === 'signup'
-              ? 'Create my free profile'
-              : 'Sign In'}
+        <button disabled={loading} type="submit" className="w-full rounded-xl bg-[#d8b56b] px-5 py-3 font-bold text-[#071426] transition hover:bg-[#e5c783] disabled:cursor-not-allowed disabled:opacity-60">
+          {loading ? 'Please wait…' : mode === 'signup' ? 'Create my free profile' : 'Sign In'}
         </button>
       </form>
 
-      {message && (
-        <p className="rounded-xl border border-emerald-400/20 bg-emerald-400/5 p-3 text-sm text-emerald-300">
-          {message}
-        </p>
-      )}
-
-      {error && (
-        <p className="rounded-xl border border-red-400/20 bg-red-400/5 p-3 text-sm text-red-300">
-          {error}
-        </p>
-      )}
+      {message && <p className="rounded-xl border border-emerald-400/20 bg-emerald-400/5 p-3 text-sm text-emerald-300">{message}</p>}
+      {error && <p className="rounded-xl border border-red-400/20 bg-red-400/5 p-3 text-sm text-red-300">{error}</p>}
     </div>
   )
 }
