@@ -14,6 +14,7 @@ export async function sendPaymentApprovalNotification(input: {
   reference: string
   product: string
   amount: number
+  currency?: string
   paymentMethod: string
   customerEmail: string
   transactionHash?: string | null
@@ -30,11 +31,12 @@ export async function sendPaymentApprovalNotification(input: {
       ? `Receipt: ${input.receiptPath}`
       : 'Proof submitted'
 
+  const currency = input.currency || 'USD'
   const text = [
     '🔔 RemoteStart-DZ — Payment verification',
     '',
     `Product: ${input.product}`,
-    `Amount: $${input.amount}`,
+    `Amount: ${input.amount.toLocaleString()} ${currency}`,
     `Method: ${input.paymentMethod}`,
     `Email: ${input.customerEmail}`,
     `Reference: ${input.reference}`,
