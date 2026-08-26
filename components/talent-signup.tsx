@@ -13,8 +13,6 @@ type ProfileForm = {
   linkedin_url: string
 }
 
-const PRODUCTION_SITE_URL = 'https://remotestart.vercel.app'
-
 export function TalentSignup() {
   const router = useRouter()
   const supabase = getSupabaseBrowserClient()
@@ -125,12 +123,10 @@ export function TalentSignup() {
         linkedin_url: linkedinUrl.trim(),
       }
 
-      // Always send production email confirmation links. A localhost origin
-      // is device-specific and cannot be opened from the phone used to confirm.
-      // The original path/section is stored in user metadata so the callback can
-      // return the user to the exact page they used to register.
-      const returnPath = `${window.location.pathname}${window.location.hash || '#talents'}`
-      const registrationRedirect = `${PRODUCTION_SITE_URL}/auth/callback`
+      // Use the exact origin where registration started. This keeps preview
+      // and production deployments consistent and avoids localhost links.
+      const returnPath = '/dashboard'
+      const registrationRedirect = `${window.location.origin}/auth/callback`
 
       const { data, error: signUpError } = await supabase.auth.signUp({
         email: normalizedEmail,
@@ -150,7 +146,7 @@ export function TalentSignup() {
       if (!data.user) throw new Error('Account creation did not return a user.')
 
       if (!data.session) {
-        setMessage('Account created. Please confirm your email. After confirmation you will return to the same RemoteStart-DZ page you used to register.')
+        setMessage('Account created. Please confirm your email. After confirmation, you will be signed in and taken to your dashboard.')
         setMode('signin')
         return
       }
