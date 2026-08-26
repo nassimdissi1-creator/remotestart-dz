@@ -46,8 +46,6 @@ export function TalentSignup() {
         Authorization: `Bearer ${accessToken}`,
       },
       body: JSON.stringify({
-        // The API derives the authoritative identity from the JWT.
-        // userId is included only as an explicit consistency check.
         id: userId,
         ...profile,
       }),
@@ -92,7 +90,6 @@ export function TalentSignup() {
           throw new Error('Sign in succeeded but no active session was returned.')
         }
 
-        // Sign In deliberately does NOT INSERT into public.talents.
         router.push('/dashboard')
         router.refresh()
         return
@@ -127,11 +124,16 @@ export function TalentSignup() {
         linkedin_url: linkedinUrl.trim(),
       }
 
+      // Always return the user to the same site they used to register.
+      // This deliberately uses the current browser origin instead of a
+      // hard-coded localhost or production URL.
+      const registrationOrigin = window.location.origin
+
       const { data, error: signUpError } = await supabase.auth.signUp({
         email: normalizedEmail,
         password,
         options: {
-          emailRedirectTo: `${window.location.origin}/dashboard`,
+          emailRedirectTo: registrationOrigin,
         },
       })
 
@@ -141,11 +143,9 @@ export function TalentSignup() {
         throw new Error('Account creation did not return a user.')
       }
 
-      // The secure profile insert is allowed only after we have the
-      // authenticated user's real auth.users ID and session JWT.
       if (!data.session) {
         setMessage(
-          'Account created. Please confirm your email, then sign in to continue.',
+          'Account created. Please confirm your email, then return here to sign in.',
         )
         setMode('signin')
         return
