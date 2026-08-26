@@ -13,6 +13,8 @@ type ProfileForm = {
   linkedin_url: string
 }
 
+const PRODUCTION_SITE_URL = 'https://remotestart.vercel.app'
+
 export function TalentSignup() {
   const router = useRouter()
   const supabase = getSupabaseBrowserClient()
@@ -53,8 +55,6 @@ export function TalentSignup() {
 
     const data = await response.json().catch(() => null)
 
-    // A confirmed user may sign in repeatedly. If the profile already exists,
-    // that is a successful idempotent completion rather than a sign-in error.
     if (response.status === 409) return data
 
     if (!response.ok) {
@@ -85,9 +85,6 @@ export function TalentSignup() {
         if (signInError) throw signInError
         if (!data.user || !data.session) throw new Error('Sign in succeeded but no active session was returned.')
 
-        // Email confirmation happens before the first session. Persist the
-        // signup form in auth metadata, then initialize the public talent row
-        // on the first successful sign-in.
         const metadata = data.user.user_metadata || {}
         const metadataProfile: ProfileForm = {
           full_name: String(metadata.full_name || '').trim(),
@@ -128,9 +125,12 @@ export function TalentSignup() {
         linkedin_url: linkedinUrl.trim(),
       }
 
-      // Keep the exact page/section used for registration. The redirect URL
-      // must also be present in Supabase Auth's allowed Redirect URLs.
-      const registrationRedirect = `${window.location.origin}${window.location.pathname}#signup`
+      // Always send production email confirmation links. A localhost origin
+      // is device-specific and cannot be opened from the phone used to confirm.
+      // The original path/section is stored in user metadata so the callback can
+      // return the user to the exact page they used to register.
+      const returnPath = `${window.location.pathname}${window.location.hash || '#talents'}`
+      const registrationRedirect = `${PRODUCTION_SITE_URL}/auth/callback`
 
       const { data, error: signUpError } = await supabase.auth.signUp({
         email: normalizedEmail,
@@ -141,6 +141,7 @@ export function TalentSignup() {
             full_name: profile.full_name,
             skills: profile.skills,
             linkedin_url: profile.linkedin_url,
+            auth_return_path: returnPath,
           },
         },
       })
@@ -149,7 +150,7 @@ export function TalentSignup() {
       if (!data.user) throw new Error('Account creation did not return a user.')
 
       if (!data.session) {
-        setMessage('Account created. Please confirm your email. After confirmation you will return here to finish signing in.')
+        setMessage('Account created. Please confirm your email. After confirmation you will return to the same RemoteStart-DZ page you used to register.')
         setMode('signin')
         return
       }
