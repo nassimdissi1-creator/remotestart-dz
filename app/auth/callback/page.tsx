@@ -5,8 +5,8 @@ import { getSupabaseBrowserClient } from '@/lib/supabase-browser'
 
 const FALLBACK_RETURN_PATH = '/#talents'
 
-function safeReturnPath(value: string | null) {
-  if (!value || !value.startsWith('/')) return FALLBACK_RETURN_PATH
+function safeReturnPath(value: unknown) {
+  if (typeof value !== 'string' || !value.startsWith('/')) return FALLBACK_RETURN_PATH
   return value
 }
 
@@ -16,28 +16,30 @@ export default function AuthCallbackPage() {
 
   useEffect(() => {
     const supabase = getSupabaseBrowserClient()
-    const next = safeReturnPath(new URL(window.location.href).searchParams.get('next'))
 
-    const redirectIfSessionExists = async () => {
+    const redirectWithSession = async () => {
       const { data, error: sessionError } = await supabase.auth.getSession()
       if (sessionError) {
         setError(sessionError.message)
         return
       }
+
+      const returnPath = safeReturnPath(data.session?.user?.user_metadata?.auth_return_path)
       if (data.session && !redirected.current) {
         redirected.current = true
-        window.location.replace(next)
+        window.location.replace(returnPath)
       }
     }
 
-    void redirectIfSessionExists()
+    void redirectWithSession()
 
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session && !redirected.current) {
         redirected.current = true
-        window.location.replace(next)
+        const returnPath = safeReturnPath(session.user.user_metadata?.auth_return_path)
+        window.location.replace(returnPath)
       }
     })
 
