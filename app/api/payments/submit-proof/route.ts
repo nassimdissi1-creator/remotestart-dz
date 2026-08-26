@@ -1,4 +1,6 @@
+import crypto from 'node:crypto'
 import { NextResponse } from 'next/server'
+import { sendPaymentApprovalNotification } from '@/lib/telegram-payments'
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -39,26 +41,61 @@ export async function POST(request: Request) {
       }
     }
 
-    let receiptPath: string | null = null
+    // Load the order first so proof submission cannot silently change an
+    // unrelated reference or use a payment method different from the order.
+    const orderResponse = await fetch(
+      `${SUPABASE_URL}/rest/v1/payment_orders?reference=eq.${encodeURIComponent(reference)}&select=id,reference,customer_type,customer_email,product_code,amount_usd,payment_method,status,transaction_hash,receipt_path`,
+      { headers: headers(), cache: 'no-store' },
+    )
+
+    if (!orderResponse.ok) {
+      return NextResponse.json({ error: 'Could not load payment order.' }, { status: 502 })
+    }
+
+    const orders = await orderResponse.json()
+    const order = orders?.[0]
+    if (!order) {
+      return NextResponse.json({ error: 'Payment order not found.' }, { status: 404 })
+    }
+
+    if (order.payment_method !== paymentMethod) {
+      return NextResponse.json({ error: 'Payment method does not match the payment order.' }, { status: 400 })
+    }
+
+    if (order.status === 'paid') {
+      return NextResponse.json({ success: true, status: 'paid', alreadyPaid: true }, { status: 200 })
+    }
+
+    if (!['pending', 'pending_verification'].includes(order.status)) {
+      return NextResponse.json({ error: `Payment order cannot accept proof in status: ${order.status}.` }, { status: 409 })
+    }
+
+    let receiptPath: string | null = order.receipt_path || null
     if (file instanceof File) {
       receiptPath = `${new Date().getUTCFullYear()}/${reference}/${crypto.randomUUID()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`
       const upload = await fetch(`${SUPABASE_URL}/storage/v1/object/${BUCKET}/${receiptPath}`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`, apikey: SUPABASE_SERVICE_ROLE_KEY, 'Content-Type': file.type, 'x-upsert': 'false' },
+        headers: {
+          Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+          apikey: SUPABASE_SERVICE_ROLE_KEY,
+          'Content-Type': file.type,
+          'x-upsert': 'false',
+        },
         body: await file.arrayBuffer(),
       })
       if (!upload.ok) return NextResponse.json({ error: 'Could not upload payment receipt.' }, { status: 502 })
     }
 
+    const now = new Date().toISOString()
     const update = await fetch(`${SUPABASE_URL}/rest/v1/payment_orders?reference=eq.${encodeURIComponent(reference)}`, {
       method: 'PATCH',
       headers: { ...headers(), Prefer: 'return=minimal' },
       body: JSON.stringify({
-        transaction_hash: transactionHash || null,
+        transaction_hash: transactionHash || order.transaction_hash || null,
         receipt_path: receiptPath,
-        proof_submitted_at: new Date().toISOString(),
+        proof_submitted_at: now,
         status: 'pending_verification',
-        updated_at: new Date().toISOString(),
+        updated_at: now,
       }),
       cache: 'no-store',
     })
@@ -68,7 +105,31 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Proof uploaded but order update failed.' }, { status: 502 })
     }
 
-    return NextResponse.json({ success: true, status: 'pending_verification' }, { status: 201 })
+    // Notify Telegram only after the payment order is successfully marked
+    // pending_verification. Use server-side order values, never client values,
+    // for the approval message.
+    const telegramNotified = await sendPaymentApprovalNotification({
+      reference: order.reference,
+      product: order.product_code,
+      amount: Number(order.amount_usd),
+      paymentMethod: order.payment_method,
+      customerEmail: order.customer_email,
+      transactionHash: transactionHash || order.transaction_hash || null,
+      receiptPath,
+    })
+
+    if (!telegramNotified) {
+      console.error('Payment proof saved but Telegram approval notification was not delivered:', reference)
+    }
+
+    return NextResponse.json(
+      {
+        success: true,
+        status: 'pending_verification',
+        telegramNotified,
+      },
+      { status: telegramNotified ? 201 : 202 },
+    )
   } catch (error) {
     console.error('Payment proof error:', error)
     return NextResponse.json({ error: 'Unexpected payment proof error.' }, { status: 500 })
