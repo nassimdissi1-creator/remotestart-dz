@@ -1,6 +1,11 @@
 import { NextResponse } from 'next/server'
 import { answerTelegramCallback, editTelegramMessage, getTelegramConfig } from '@/lib/telegram-payments'
-import { fulfillPayment, rejectPayment } from '@/lib/payment-fulfillment'
+import {
+  fulfillPayment,
+  fulfillPaymentById,
+  rejectPayment,
+  rejectPaymentById,
+} from '@/lib/payment-fulfillment'
 
 export async function POST(request: Request) {
   const { webhookSecret } = getTelegramConfig()
@@ -15,35 +20,47 @@ export async function POST(request: Request) {
     const callback = update?.callback_query
     const callbackData = typeof callback?.data === 'string' ? callback.data : ''
 
-    // Support both the current Pipedream callback format:
+    // Supported formats:
     //   approve:<reference> / reject:<reference>
-    // and the newer namespaced format:
     //   pay:approve:<reference> / pay:reject:<reference>
+    //   pay:approve:id:<payment_order_uuid> / pay:reject:id:<payment_order_uuid>
     const parts = callbackData.split(':')
     let action = ''
-    let reference = ''
+    let targetType: 'reference' | 'id' = 'reference'
+    let target = ''
 
     if (parts.length === 2 && ['approve', 'reject'].includes(parts[0])) {
       action = parts[0]
-      reference = parts[1]
+      target = parts[1]
     } else if (parts.length === 3 && parts[0] === 'pay' && ['approve', 'reject'].includes(parts[1])) {
       action = parts[1]
-      reference = parts[2]
+      target = parts[2]
+    } else if (
+      parts.length === 4 &&
+      parts[0] === 'pay' &&
+      ['approve', 'reject'].includes(parts[1]) &&
+      parts[2] === 'id'
+    ) {
+      action = parts[1]
+      targetType = 'id'
+      target = parts[3]
     } else {
       return NextResponse.json({ ok: true })
     }
 
-    if (!reference || reference.length > 200) return NextResponse.json({ ok: true })
+    if (!target || target.length > 200) return NextResponse.json({ ok: true })
 
     const verifiedBy = callback.from?.username
       ? `telegram:${callback.from.username}`
       : `telegram:${callback.from?.id ?? 'admin'}`
 
     if (action === 'approve') {
-      await fulfillPayment(reference, verifiedBy)
+      if (targetType === 'id') await fulfillPaymentById(target, verifiedBy)
+      else await fulfillPayment(target, verifiedBy)
       await answerTelegramCallback(callback.id, 'Payment approved and access unlocked.')
     } else {
-      await rejectPayment(reference, verifiedBy)
+      if (targetType === 'id') await rejectPaymentById(target, verifiedBy)
+      else await rejectPayment(target, verifiedBy)
       await answerTelegramCallback(callback.id, 'Payment rejected.')
     }
 
