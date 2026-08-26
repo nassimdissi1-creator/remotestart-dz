@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { getSupabaseBrowserClient } from '@/lib/supabase-browser'
+import { TalentProUpgrade } from '@/components/talent-pro-upgrade'
 
 type Talent = {
   id: string
@@ -45,6 +46,7 @@ type PaymentOrder = {
   payment_method: string
   status: string
   currency: string | null
+  metadata: Record<string, unknown> | null
   created_at: string
   paid_at: string | null
 }
@@ -124,7 +126,7 @@ export default function DashboardPage() {
         .maybeSingle(),
       supabase
         .from('payment_orders')
-        .select('reference,product_code,amount_usd,payment_method,status,currency,created_at,paid_at')
+        .select('reference,product_code,amount_usd,payment_method,status,currency,metadata,created_at,paid_at')
         .eq('customer_id', user.id)
         .order('created_at', { ascending: false })
         .limit(5),
@@ -280,12 +282,16 @@ export default function DashboardPage() {
               </div>
             </section>
 
+            {!isPro && (
+              <TalentProUpgrade onPaymentSubmitted={refresh} />
+            )}
+
             <section className="mt-6 grid gap-4 md:grid-cols-2">
               <div className="rounded-3xl border border-white/10 bg-white/[.035] p-6">
                 <div className="flex items-start justify-between gap-4">
                   <div>
                     <p className="text-xs font-bold uppercase tracking-[.2em] text-[#d8b56b]">AI CV Review</p>
-                    <h2 className="mt-2 text-2xl font-extrabold">{reviewRemaining} / {reviewLimit}</h2>
+                    <h2 className="mt-2 text-2xl font-extrabold">{isPro ? `${reviewRemaining} / ${reviewLimit}` : `0 / ${reviewLimit}`}</h2>
                     <p className="mt-1 text-sm text-slate-400">Reviews remaining in your current Talent Pro period.</p>
                   </div>
                   <span className="rounded-xl bg-[#d8b56b]/10 px-3 py-2 text-xs font-bold text-[#d8b56b]">Included</span>
@@ -338,15 +344,23 @@ export default function DashboardPage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-white/5">
-                      {orders.map((order) => (
-                        <tr key={order.reference}>
-                          <td className="py-3 pr-4 font-medium">{humanProduct(order.product_code)}</td>
-                          <td className="py-3 pr-4">{formatMoney(order.amount_usd, order.currency || 'USD')}</td>
-                          <td className="py-3 pr-4 capitalize">{order.payment_method}</td>
-                          <td className="py-3 pr-4 capitalize">{order.status.replaceAll('_', ' ')}</td>
-                          <td className="py-3">{formatDate(order.created_at)}</td>
-                        </tr>
-                      ))}
+                      {orders.map((order) => {
+                        const isLocalTalentPayment = order.product_code === 'talent_pro' && order.payment_method === 'baridimob'
+                        const displayAmount = isLocalTalentPayment
+                          ? Number(order.metadata?.local_amount ?? 8000)
+                          : Number(order.amount_usd)
+                        const displayCurrency = isLocalTalentPayment ? 'DZD' : (order.currency || 'USD')
+
+                        return (
+                          <tr key={order.reference}>
+                            <td className="py-3 pr-4 font-medium">{humanProduct(order.product_code)}</td>
+                            <td className="py-3 pr-4">{formatMoney(displayAmount, displayCurrency)}</td>
+                            <td className="py-3 pr-4 capitalize">{order.payment_method}</td>
+                            <td className="py-3 pr-4 capitalize">{order.status.replaceAll('_', ' ')}</td>
+                            <td className="py-3">{formatDate(order.created_at)}</td>
+                          </tr>
+                        )
+                      })}
                     </tbody>
                   </table>
                 </div>
