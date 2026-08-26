@@ -12,6 +12,7 @@ export function getTelegramConfig() {
 
 export async function sendPaymentApprovalNotification(input: {
   reference: string
+  paymentOrderId?: string | null
   product: string
   amount: number
   currency?: string
@@ -45,6 +46,20 @@ export async function sendPaymentApprovalNotification(input: {
     'Choose an action below:',
   ].join('\n')
 
+  // Telegram limits callback_data to 64 bytes. Payment references can exceed
+  // that once the action prefix is added, so use the UUID payment_order id for
+  // callbacks and resolve it server-side. Keep the reference visible in text.
+  const callbackTarget = input.paymentOrderId
+    ? `id:${input.paymentOrderId}`
+    : input.reference.length <= 52
+      ? `ref:${input.reference}`
+      : null
+
+  if (!callbackTarget) {
+    console.error('Telegram notification skipped: no safe callback target.')
+    return false
+  }
+
   const response = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -53,8 +68,8 @@ export async function sendPaymentApprovalNotification(input: {
       text,
       reply_markup: {
         inline_keyboard: [[
-          { text: '✅ Approve', callback_data: `pay:approve:${input.reference}` },
-          { text: '❌ Reject', callback_data: `pay:reject:${input.reference}` },
+          { text: '✅ Approve', callback_data: `pay:approve:${callbackTarget}` },
+          { text: '❌ Reject', callback_data: `pay:reject:${callbackTarget}` },
         ]],
       },
     }),
