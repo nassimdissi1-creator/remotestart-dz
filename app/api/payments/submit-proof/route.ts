@@ -42,7 +42,7 @@ export async function POST(request: Request) {
     }
 
     const orderResponse = await fetch(
-      `${SUPABASE_URL}/rest/v1/payment_orders?reference=eq.${encodeURIComponent(reference)}&select=id,reference,customer_type,customer_id,customer_email,product_code,amount_usd,payment_method,status,transaction_hash,receipt_path,metadata`,
+      `${SUPABASE_URL}/rest/v1/payment_orders?reference=eq.${encodeURIComponent(reference)}&select=id,reference,customer_type,customer_id,customer_email,product_code,amount_usd,payment_method,status,transaction_hash,receipt_path,metadata,currency`,
       { headers: headers(), cache: 'no-store' },
     )
 
@@ -104,13 +104,15 @@ export async function POST(request: Request) {
     const notificationAmount = isLocalTalentPayment
       ? Number(metadata.local_amount || 8000)
       : Number(order.amount_usd)
+    const notificationCurrency = isLocalTalentPayment ? 'DZD' : String(order.currency || 'USD')
 
     // Telegram is sent only after the order is successfully marked
-    // pending_verification, and the amount comes from the server-side order.
+    // pending_verification, and the amount/currency come from the server-side order.
     const telegramNotified = await sendPaymentApprovalNotification({
       reference: order.reference,
       product: order.product_code,
       amount: notificationAmount,
+      currency: notificationCurrency,
       paymentMethod: order.payment_method,
       customerEmail: order.customer_email,
       transactionHash: transactionHash || order.transaction_hash || null,
