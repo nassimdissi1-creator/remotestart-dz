@@ -7,6 +7,8 @@ export default function AdminHomePage() {
   const [secret, setSecret] = useState('')
   const [loggedIn, setLoggedIn] = useState(false)
   const [message, setMessage] = useState('')
+  const [webhookStatus, setWebhookStatus] = useState('')
+  const [settingWebhook, setSettingWebhook] = useState(false)
 
   useEffect(() => {
     fetch('/api/admin/payments', { cache: 'no-store' }).then((response) => {
@@ -28,6 +30,28 @@ export default function AdminHomePage() {
     }
     setSecret('')
     setLoggedIn(true)
+  }
+
+  async function setupTelegramWebhook() {
+    setWebhookStatus('')
+    setSettingWebhook(true)
+    try {
+      const response = await fetch('/api/admin/telegram/setup-webhook', {
+        method: 'POST',
+        credentials: 'same-origin',
+        cache: 'no-store',
+      })
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok || !data.success) {
+        setWebhookStatus(data.error || 'Telegram webhook setup failed.')
+        return
+      }
+      setWebhookStatus(`Telegram webhook connected: ${data.webhookUrl}`)
+    } catch {
+      setWebhookStatus('Could not reach the Telegram webhook setup endpoint.')
+    } finally {
+      setSettingWebhook(false)
+    }
   }
 
   return (
@@ -55,18 +79,36 @@ export default function AdminHomePage() {
             {message && <p className="mt-3 text-sm text-red-300">{message}</p>}
           </div>
         ) : (
-          <div className="mt-8 grid gap-4 sm:grid-cols-2">
-            <Link href="/admin/test-payment" className="rounded-2xl border border-white/10 bg-white/[.04] p-6 transition hover:bg-white/[.07]">
-              <p className="text-xs font-bold uppercase tracking-widest text-[#d8b56b]">Safe test</p>
-              <h2 className="mt-2 text-xl font-bold">Talent Pro test payment</h2>
-              <p className="mt-2 text-sm text-slate-400">Create an admin-only test order without contacting RedotPay or BaridiMob.</p>
-            </Link>
-            <Link href="/admin/payments" className="rounded-2xl border border-white/10 bg-white/[.04] p-6 transition hover:bg-white/[.07]">
-              <p className="text-xs font-bold uppercase tracking-widest text-[#d8b56b]">Payments</p>
-              <h2 className="mt-2 text-xl font-bold">Payment verification</h2>
-              <p className="mt-2 text-sm text-slate-400">Review pending payment orders and use the canonical approval path.</p>
-            </Link>
-          </div>
+          <>
+            <div className="mt-8 rounded-2xl border border-white/10 bg-white/[.04] p-6">
+              <p className="text-xs font-bold uppercase tracking-widest text-[#d8b56b]">Telegram</p>
+              <h2 className="mt-2 text-xl font-bold">Connect payment approval webhook</h2>
+              <p className="mt-2 text-sm text-slate-400">
+                Securely points Telegram at this production origin. No secret is exposed to the browser.
+              </p>
+              <button
+                onClick={setupTelegramWebhook}
+                disabled={settingWebhook}
+                className="mt-4 rounded-xl bg-[#d8b56b] px-5 py-3 font-bold text-[#071426] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {settingWebhook ? 'Connecting Telegram…' : 'Connect Telegram Webhook'}
+              </button>
+              {webhookStatus && <p className="mt-3 break-all text-sm text-slate-300">{webhookStatus}</p>}
+            </div>
+
+            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+              <Link href="/admin/test-payment" className="rounded-2xl border border-white/10 bg-white/[.04] p-6 transition hover:bg-white/[.07]">
+                <p className="text-xs font-bold uppercase tracking-widest text-[#d8b56b]">Safe test</p>
+                <h2 className="mt-2 text-xl font-bold">Talent Pro test payment</h2>
+                <p className="mt-2 text-sm text-slate-400">Create an admin-only test order without contacting RedotPay or BaridiMob.</p>
+              </Link>
+              <Link href="/admin/payments" className="rounded-2xl border border-white/10 bg-white/[.04] p-6 transition hover:bg-white/[.07]">
+                <p className="text-xs font-bold uppercase tracking-widest text-[#d8b56b]">Payments</p>
+                <h2 className="mt-2 text-xl font-bold">Payment verification</h2>
+                <p className="mt-2 text-sm text-slate-400">Review pending payment orders and use the canonical approval path.</p>
+              </Link>
+            </div>
+          </>
         )}
       </div>
     </main>
