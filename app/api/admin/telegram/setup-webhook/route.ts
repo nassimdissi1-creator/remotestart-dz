@@ -23,10 +23,11 @@ async function setupWebhook(request: Request) {
     return NextResponse.json({ error: 'Telegram configuration is incomplete.' }, { status: 500 })
   }
 
-  const configuredSiteUrl = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, '')
+  // Always bind Telegram to the exact origin used to invoke this protected
+  // endpoint. This prevents a stale NEXT_PUBLIC_SITE_URL from leaving the bot
+  // pointed at an old Vercel deployment.
   const requestOrigin = new URL(request.url).origin
-  const siteUrl = configuredSiteUrl || requestOrigin
-  const webhookUrl = `${siteUrl}/api/payments/telegram/webhook`
+  const webhookUrl = `${requestOrigin}/api/payments/telegram/webhook`
 
   const response = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/setWebhook`, {
     method: 'POST',
